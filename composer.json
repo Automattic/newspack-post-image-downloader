@@ -1,0 +1,37 @@
+{
+  "name": "automattic/newspack-post-image-downloader",
+  "description": "Downloads all Post images hosted externally, or imports them from local files.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "autoload": {
+    "classmap": [
+      "src/",
+      "tests/"
+    ]
+  },
+  "require": {
+    "composer/installers": "^1.6",
+    "brainmaestro/composer-git-hooks": "^2.6",
+    "symfony/dom-crawler": "^5.2"
+  },
+  "require-dev": {
+    "xwp/wp-dev-lib": "^1.5",
+    "automattic/vipwpcs": "^2.0.0",
+    "wp-coding-standards/wpcs": "*",
+    "dealerdirect/phpcodesniffer-composer-installer": "*",
+    "phpcompatibility/phpcompatibility-wp": "*"
+  },
+  "scripts": {
+    "post-install-cmd": [
+      "vendor/bin/cghooks add --no-lock"
+    ],
+    "post-update-cmd": [
+      "vendor/bin/cghooks update"
+    ]
+  },
+  "extra": {
+    "hooks": {
+      "pre-commit": "./vendor/xwp/wp-dev-lib/scripts/pre-commit"
+    }
+  }
+}
