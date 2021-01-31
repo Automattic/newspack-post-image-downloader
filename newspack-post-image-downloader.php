@@ -2,9 +2,9 @@
 /**
  * Plugin Name: Newspack External Image Downloader
  * Description: Downloads all the images in Posts which are hosted externally, or imports them directly from local files.
- * Plugin URI:  https://newspack.blog/
+ * Plugin URI:  https://newspack.pub/
  * Author:      Automattic
- * Author URI:  https://newspack.blog/
+ * Author URI:  https://newspack.pub/
  * Version:     0.1.0
  *
  * @package  Newspack_Post_Image_Downloader
