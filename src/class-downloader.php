@@ -179,7 +179,7 @@ class Downloader {
 			exit;
 		}
 
-		WP_CLI::line( sprintf( 'Checking image hosts for %d posts...', cunt( $posts ) ) );
+		WP_CLI::line( sprintf( 'Checking image hosts in %d posts...', count( $posts ) ) );
 		$img_hostnames = array();
 		foreach ( $posts as $i => $post ) {
 			$img_srcs = $this->get_all_img_srcs( $post->post_content );
