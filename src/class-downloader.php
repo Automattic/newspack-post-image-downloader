@@ -163,8 +163,8 @@ class Downloader {
 	 */
 	public function cmd_scan_existing_images_hostnames( $args, $assoc_args ) {
 		$list_all_post_ids = isset( $assoc_args['list-all-post-ids'] );
-		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : null;
-		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : null;
+		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
+		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
 		$post_id_from      = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
 		$post_id_to        = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
 		if ( ( $post_id_from && ! $post_id_to ) || ( ! $post_id_from && $post_id_to ) ) {
@@ -221,8 +221,8 @@ class Downloader {
 	 */
 	public function cmd_import_images( $args, $assoc_args ) {
 		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
-		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : null;
-		$post_statuses                 = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : null;
+		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
+		$post_statuses                 = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
 		$post_id_from                  = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
 		$post_id_to                    = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
 		$hosts_excluded                = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
@@ -608,7 +608,13 @@ class Downloader {
 		$types_placeholders    = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 		$statuses_placeholders = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
 		$query                 = "SELECT ID, post_content FROM {$wpdb->prefix}posts WHERE post_type IN ( $types_placeholders ) AND post_status IN ( $statuses_placeholders ) ";
-		$prepare_args          = array_merge( $post_types, $post_statuses );
+		$prepare_args          = array();
+		foreach ( $post_types as $post_type ) {
+			array_push( $prepare_args, $post_type );
+		}
+		foreach ( $post_statuses as $post_statuse ) {
+			array_push( $prepare_args, $post_statuse );
+		}
 
 		if ( $post_id_from && $post_id_to ) {
 			$query .= ' AND ID BETWEEN %d AND %d ';
