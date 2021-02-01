@@ -21,6 +21,7 @@ class Downloader {
 	/**
 	 * Log file names. Split by error types for easier debugging.
 	 */
+	const LOG_FILES_EXTENSION                = '.log';
 	const LOG_FILE_ERR_DOWNLOAD_FAILED       = 'imagedownloader__err_download.log';
 	const LOG_FILE_ERR_IMPORT_FAILED         = 'imagedownloader__err_import.log';
 	const LOG_FILE_ERR_DOWNLOADING_REFERENCE = 'imagedownloader__err_downloading_reference.log';
@@ -178,7 +179,7 @@ class Downloader {
 			exit;
 		}
 
-		// Get all `<img>` `src`s.
+		WP_CLI::line( sprintf( 'Checking image hosts for %d posts...', cunt( $posts ) ) );
 		$img_hostnames = array();
 		foreach ( $posts as $i => $post ) {
 			$img_srcs = $this->get_all_img_srcs( $post->post_content );
@@ -241,10 +242,18 @@ class Downloader {
 		$hosts_excluded = $this->get_all_excluded_hosts( $hosts_excluded );
 
 		// Flush the log files.
-		@unlink( self::LOG_FILE_ERR_DOWNLOAD_FAILED );
-		@unlink( self::LOG_FILE_ERR_IMPORT_FAILED );
-		@unlink( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE );
-		@unlink( self::LOG_FILE_ERR_OTHER );
+		$logs = array(
+			$this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ),
+			$this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ),
+			$this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ),
+			$this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ),
+		);
+		foreach ( $logs as $log ) {
+			if ( file_exists( $log ) ) {
+				// phpcs:ignore
+				unlink( $log );
+			}
+		}
 
 		WP_CLI::line( 'Fetching Posts...' );
 		$posts = $this->get_posts_ids_and_contents( $post_id_from, $post_id_to, $post_types, $post_statuses );
@@ -294,10 +303,10 @@ class Downloader {
 				} catch ( \Exception $e ) {
 					if ( self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED == $e->getCode() ) {
 						WP_CLI::warning( sprintf( '❗ Default download host+schema missing: %s', $e->getMessage() ) );
-						$this->log( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, sprintf( 'ID %d src %s', $post->ID, $src ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post->ID, $src ) );
 					} else {
 						WP_CLI::warning( sprintf( '❗ Unknown error when getting image path: %s', $e->getMessage() ) );
-						$this->log( self::LOG_FILE_ERR_OTHER, sprintf( 'ID %d src %s', $post->ID, $src ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post->ID, $src ) );
 					}
 
 					continue;
@@ -317,13 +326,13 @@ class Downloader {
 				} catch ( \Exception $e ) {
 					if ( self::EXCEPTION_CODE_DOWNLOAD_FAILED == $e->getCode() ) {
 						WP_CLI::warning( sprintf( '❗ Error while downloading image: %s', $e->getMessage() ) );
-						$this->log( self::LOG_FILE_ERR_DOWNLOAD_FAILED, sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
 					} elseif ( self::EXCEPTION_CODE_IMPORT_FAILED == $e->getCode() ) {
 						WP_CLI::warning( sprintf( '❗ Error during import to Media Library: %s', $e->getMessage() ) );
-						$this->log( self::LOG_FILE_ERR_IMPORT_FAILED, sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
 					} else {
 						WP_CLI::warning( sprintf( '❗ Unknown error: %s', $e->getMessage() ) );
-						$this->log( self::LOG_FILE_ERR_OTHER, sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
 					}
 
 					continue;
@@ -349,7 +358,7 @@ class Downloader {
 		wp_cache_flush();
 
 		// Closing remarks.
-		$this->cli_output_warnings_for_logged_errors( $default_image_host_and_schema );
+		$this->cli_output_warnings_for_logged_errors( $default_image_host_and_schema, $post_id_from, $post_id_to );
 		WP_CLI::line( sprintf( 'All done!  🙌  Took %d mins.', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 	}
 
@@ -357,38 +366,40 @@ class Downloader {
 	 * Outputs warnings to the CLI regarding all encountered and logged errors.
 	 *
 	 * @param string $default_image_host_and_schema Default schema+hostname to download non-fully qualified URIs from.
+	 * @param int    $post_id_from                 --post-id-from command argument.
+	 * @param int    $post_id_to                   --post-id-to command argument.
 	 */
-	public function cli_output_warnings_for_logged_errors( $default_image_host_and_schema ) {
-		if ( $this->file_exists( self::LOG_FILE_ERR_DOWNLOAD_FAILED ) ) {
+	public function cli_output_warnings_for_logged_errors( $default_image_host_and_schema, $post_id_from, $post_id_to ) {
+		if ( $this->file_exists( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ) ) ) {
 			WP_CLI::warning(
 				sprintf(
 					'❗ Some image could not be downloaded. See the `%s` log file for a full list.',
-					self::LOG_FILE_ERR_DOWNLOAD_FAILED
+					$this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to )
 				)
 			);
 		}
-		if ( $this->file_exists( self::LOG_FILE_ERR_IMPORT_FAILED ) ) {
+		if ( $this->file_exists( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ) ) ) {
 			WP_CLI::warning(
 				sprintf(
 					'❗ Some image could not be imported into the Media Library. See the `%s` log file for a full list.',
-					self::LOG_FILE_ERR_IMPORT_FAILED
+					$this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to )
 				)
 			);
 		}
-		if ( $this->file_exists( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE ) ) {
+		if ( $this->file_exists( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ) ) ) {
 			WP_CLI::warning(
 				sprintf(
 					'❗ Some non-fully-qualified images URLs could not be downloaded %s. See the `%s` log file for a full list. You will probably want to set this parameter and rerun this command.',
 					( ! $default_image_host_and_schema ? ', probably because you did not provide the `--default-image-host-and-schema` param' : '' ),
-					self::LOG_FILE_ERR_DOWNLOADING_REFERENCE
+					$this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to )
 				)
 			);
 		}
-		if ( $this->file_exists( self::LOG_FILE_ERR_OTHER ) ) {
+		if ( $this->file_exists( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ) ) ) {
 			WP_CLI::warning(
 				sprintf(
 					'❗ Some unknown errors occurred. See the `%s` log file for a full list.',
-					self::LOG_FILE_ERR_OTHER
+					$this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to )
 				)
 			);
 		}
@@ -576,7 +587,10 @@ class Downloader {
 
 		// If there was an error importing after downloading, first clean up the temp file.
 		if ( is_wp_error( $att_id ) && $is_http ) {
-			@unlink( $file_array['tmp_name'] );
+			if ( file_exists( $file_array['tmp_name'] ) ) {
+				// phpcs:ignore
+				unlink( $file_array['tmp_name'] );
+			}
 			throw ( new RuntimeException( $att_id->get_error_message(), self::EXCEPTION_CODE_IMPORT_FAILED ) );
 		}
 
@@ -689,5 +703,36 @@ class Downloader {
 	private function log( $file, $message ) {
 		$message .= "\n";
 		file_put_contents( $file, $message, FILE_APPEND );
+	}
+
+	/**
+	 * Appends the `_{$post_id_from}-{$post_id_to}_` to log file name.
+	 *
+	 * @param string $log_filename Log file name.
+	 * @param string $post_id_from --post-id-from command argument.
+	 * @param string $post_id_to   --post-id-to command argument.
+	 *
+	 * @return mixed
+	 */
+	private function get_log_name( $log_filename, $post_id_from, $post_id_to ) {
+		if ( ! $post_id_from || ! $post_id_to ) {
+			return $log_filename;
+		}
+
+		// Double check if file ends with known extension.
+		$extension_pos = strrpos( $log_filename, self::LOG_FILES_EXTENSION );
+		if ( strlen( self::LOG_FILES_EXTENSION ) != ( strlen( $log_filename ) - $extension_pos ) ) {
+			return $log_filename;
+		}
+
+		// Append the ID range to log name.
+		$log_filename_custom = sprintf(
+			'%s_%s_%s',
+			substr( $log_filename, 0, $extension_pos ),
+			$post_id_from . '-' . $post_id_to,
+			self::LOG_FILES_EXTENSION
+		);
+
+		return $log_filename_custom;
 	}
 }
