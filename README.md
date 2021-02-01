@@ -24,15 +24,15 @@ Also optional. Alternatively, you can specify hosts not to download images from,
 
 To speed up downloading, you could run several commands in parallel. This is done by grouping your existing Post IDs into several batches, and then running the command with different `--post-id-from` and `--post-id-to` ID ranges.
 
-### -- custom post type and post status selection
-
-By default, the Plugin downloads or imports external images from all the public Posts and Pages, and this can be customized with `--post-types` and `--post-statuses`.  
-
 ### -- downloads absolute or relative referenced URIs
 
 Except from downloading images with the standard `https://...` `src` prefix, by providing the `--default-image-host-and-schema=https://example-origin.com`, these URI types get downloaded too:
 - _absolute referenced sources_, e.g. `/path/image.jpg`,
 - the Plugin also attempts to download _relative referenced sources_, e.g. `path/image.jpg`, by treating them as absolute ones (which makes sense if the page where the images were located at is located at the root path, e.g. `https://host.com/my_post_with_images`) 
+
+### -- custom post type and post status selection
+
+By default, the Plugin downloads or imports external images from all the public Posts and Pages, and this can be customized with `--post-types` and `--post-statuses`.  
 
 ### -- error logging
 
