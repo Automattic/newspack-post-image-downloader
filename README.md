@@ -6,6 +6,10 @@ This plugin downloads externally hosted images found in tour Posts. It can optio
 
 The CLI command parameters offer a flexible set of features.
 
+### -- download or import images from local files 
+
+If you have images available in your local files, and you use the `--folder-local-images` parameter, the plugin will first attempt to import these directly, without downloading them.
+
 ### -- download images from specific hosts only
 
 The plugin downloads all the externally hosted images by default. Optionally, we can set to download just from specific hosts.
@@ -15,10 +19,6 @@ There is a helper command called `scan-existing-images-hostnames` which lists al
 ### -- skip (exclude) specific hosts from downloading
 
 Also optional. Alternatively, you can specify hosts not to download images from, and the plugin will download images from all the hosts except these, e.g. `*.google.*` (the `--exclude-hosts` parameter). Wildcards are also supported to use all domain extensions and/or subdomains.
-
-### -- download or import images from local files 
-
-If you have images available in your local files, and you use the `--folder-local-images` parameter, the plugin will first attempt to import these directly, without downloading them.
 
 ### -- parallel downloading
 
