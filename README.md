@@ -6,28 +6,23 @@ This plugin downloads externally hosted images found in tour Posts. It can optio
 
 The CLI command parameters offer a flexible set of features.
 
-### -- download images ony from specific hosts
+### -- download or import images from local files 
 
-By default, the Plugin will download all the externally hosted images. But optionally, you may select just specific hosts to download images from.
+If you have images available in your local files, and you use the `--folder-local-images` parameter, the plugin will first attempt to import these directly, without downloading them.
 
-You might first run the helper command `scan-existing-images-hostnames` to list all the host names used in `<img src="...">`, and then chose to download just from specific ones. You can do so by setting the `--only-download-from-hosts` command parameter. 
+### -- download images from specific hosts only
+
+The plugin downloads all the externally hosted images by default. Optionally, we can set to download just from specific hosts.
+
+There is a helper command called `scan-existing-images-hostnames` which lists all the host names used in images. After listing all existing hosts, we can chose to download just from specific ones (via the `--only-download-from-hosts` command parameter).
 
 ### -- skip (exclude) specific hosts from downloading
 
-This is optional, but alternatively you can specify hosts not to download images from, and the Plugin will download images from all the hosts except these.
-By using the `--exclude-hosts` command parameter, you can set a list of excluded hosts and downloading will be skipped from these (e.g. `*.google.*`).
-
-### -- download or import images from local files 
-
-If you have local image files available, the Plugin will first attempt to import these directly without downloading them. Use the `--folder-local-images` folder path to let the Plugin know where the image files are located.
+Also optional. Alternatively, you can specify hosts not to download images from, and the plugin will download images from all the hosts except these, e.g. `*.google.*` (the `--exclude-hosts` parameter). Wildcards are also supported to use all domain extensions and/or subdomains.
 
 ### -- parallel downloading
 
-To speed up downloading, you could run parallel commands. This is done by choosing groups of Post IDs, and running the command with different `--post-id-from` and `--post-id-to` ID ranges.
-
-### -- custom post type and post status selection
-
-By default, the Plugin downloads or imports external images from all the public Posts and Pages, and this can be customized with `--post-types` and `--post-statuses`.  
+To speed up downloading, you could run several commands in parallel. This is done by grouping your existing Post IDs into several batches, and then running the command with different `--post-id-from` and `--post-id-to` ID ranges.
 
 ### -- downloads absolute or relative referenced URIs
 
@@ -35,9 +30,13 @@ Except from downloading images with the standard `https://...` `src` prefix, by 
 - _absolute referenced sources_, e.g. `/path/image.jpg`,
 - the Plugin also attempts to download _relative referenced sources_, e.g. `path/image.jpg`, by treating them as absolute ones (which makes sense if the page where the images were located at is located at the root path, e.g. `https://host.com/my_post_with_images`) 
 
+### -- custom post type and post status selection
+
+By default, the Plugin downloads or imports external images from all the public Posts and Pages, and this can be customized with `--post-types` and `--post-statuses`.  
+
 ### -- error logging
 
-Creates detailed custom error logs, and warns you if any errors occurred.
+Creates detailed custom error logs for review afterwards.
 
 ### -- dry-run
 
