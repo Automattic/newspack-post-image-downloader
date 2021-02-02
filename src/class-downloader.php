@@ -168,7 +168,7 @@ class Downloader {
 		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
 		$post_id_from      = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
 		$post_id_to        = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
-		if ( ( $post_id_from && ! $post_id_to ) || ( ! $post_id_from && $post_id_to ) ) {
+		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
 			WP_CLI::error( 'Both post ID ranges are required.' );
 		}
 
@@ -230,7 +230,7 @@ class Downloader {
 		$only_download_from_hosts      = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
 		$default_image_host_and_schema = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
 		$folder_local_images           = isset( $assoc_args['folder-local-images'] ) ? rtrim( $assoc_args['folder-local-images'], '/' ) : null;
-		if ( ( $post_id_from && ! $post_id_to ) || ( ! $post_id_from && $post_id_to ) ) {
+		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
 			WP_CLI::error( '❗ Both `--post-id-from` and `--post-id-to` ranges are required.' );
 		}
 		if ( $only_download_from_hosts && $hosts_excluded ) {
