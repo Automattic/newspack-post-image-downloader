@@ -630,7 +630,7 @@ class Downloader {
 			array_push( $prepare_args, $post_statuse );
 		}
 
-		if ( $post_id_from && $post_id_to ) {
+		if ( null !== $post_id_from && null !== $post_id_to ) {
 			$query .= ' AND ID BETWEEN %d AND %d ';
 			array_push( $prepare_args, $post_id_from, $post_id_to );
 		}
