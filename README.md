@@ -2,9 +2,9 @@
 
 This plugin is a content migration service tool. It imports externally hosted images found in your Post contents.
 
-A typical use case for downloading externally hosted images is to continue importing/adopting Post contents after the site migration from one host to another.
+A typical use case for downloading and importing external images, is to aid importing of all the contents after the site's migration from one host to another.
 
-It has the ability to both import the images directly from local files without downloading them, if they are available as local files, or actually download and import them from the image source URL.
+The plugin can first attempt to import the images from local files, if you have them available as local files, or if not, it will download and import them from the source URL.
 
 ## Features
 
