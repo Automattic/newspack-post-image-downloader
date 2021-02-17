@@ -1,10 +1,10 @@
 # Newspack Post Image Downloader
 
-This plugin downloads externally hosted images found in tour Posts. It can optionally also import images directly from local files, if available.
+This plugin is a content migration service tool. It downloads externally hosted images found in the Post contents (typically after migration from one host to another). It has the ability to both import the images directly from local files without downloading them, if they are available as local files, or actually download and import them from the image source URL.
 
 ## Features
 
-The CLI command parameters offer a flexible set of features.
+The plugin features CLI commands with parameters which offer a flexible set of basic features.
 
 ### -- download or import images from local files 
 
