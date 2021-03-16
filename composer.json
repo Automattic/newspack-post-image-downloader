@@ -12,7 +12,8 @@
   "require": {
     "composer/installers": "^1.6",
     "brainmaestro/composer-git-hooks": "^2.6",
-    "symfony/dom-crawler": "^5.2"
+    "symfony/dom-crawler": "^5.2",
+    "symfony/css-selector": "^5.2"
   },
   "require-dev": {
     "xwp/wp-dev-lib": "^1.5",
