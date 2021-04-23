@@ -22,6 +22,7 @@ class Downloader {
 	 * Log file names. Split by error types for easier debugging.
 	 */
 	const LOG_FILES_EXTENSION                = '.log';
+	const LOG_FILE_DOWNLOAD                  = 'imagedownloader__download.log';
 	const LOG_FILE_ERR_DOWNLOAD_FAILED       = 'imagedownloader__err_download.log';
 	const LOG_FILE_ERR_IMPORT_FAILED         = 'imagedownloader__err_import.log';
 	const LOG_FILE_ERR_DOWNLOADING_REFERENCE = 'imagedownloader__err_downloading_reference.log';
@@ -47,7 +48,7 @@ class Downloader {
 					array(
 						'type'        => 'flag',
 						'name'        => 'list-all-post-ids',
-						'description' => 'Also output all the Post IDs in which the image `src` hostnames were found.',
+						'description' => 'Besides listing the results with all the images `src` hostnames found in your Posts, also list all the Post IDs where these were found.',
 						'optional'    => true,
 					),
 					array(
@@ -66,15 +67,22 @@ class Downloader {
 					),
 					array(
 						'type'        => 'assoc',
+						'name'        => 'post-ids-csv',
+						'description' => 'Specify Posts to scan with a CSV list of Post IDs.',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
 						'name'        => 'post-id-from',
-						'description' => 'Only scan Post IDs from-to.',
+						'description' => 'Specify Post IDs to scan with a from-to range.',
 						'optional'    => true,
 						'repeating'   => false,
 					),
 					array(
 						'type'        => 'assoc',
 						'name'        => 'post-id-to',
-						'description' => 'Only scan Post IDs from-to.',
+						'description' => 'Specify Post IDs to scan with a from-to range.',
 						'optional'    => true,
 						'repeating'   => false,
 					),
@@ -138,6 +146,13 @@ class Downloader {
 					),
 					array(
 						'type'        => 'assoc',
+						'name'        => 'post-ids-csv',
+						'description' => 'CSV list of Post IDs.',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
 						'name'        => 'post-id-from',
 						'description' => 'Only scan Post IDs from-to.',
 						'optional'    => true,
@@ -166,14 +181,19 @@ class Downloader {
 		$list_all_post_ids = isset( $assoc_args['list-all-post-ids'] );
 		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
 		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
+		$post_ids_specific = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
 		$post_id_from      = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
 		$post_id_to        = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
+
+		if ( ( $post_ids_specific && $post_id_from ) || ( $post_ids_specific && $post_id_to ) ) {
+			WP_CLI::error( '❗ Sorry, you can either specify a CSV list of Post IDs, or a range of Post IDs.' );
+		}
 		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
-			WP_CLI::error( 'Both post ID ranges are required.' );
+			WP_CLI::error( '❗ Both post ID ranges are required.' );
 		}
 
 		$time_start = microtime( true );
-		$posts      = $this->get_posts_ids_and_contents( $post_id_from, $post_id_to, $post_types, $post_statuses );
+		$posts      = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
 		if ( empty( $posts ) ) {
 			WP_CLI::warning( 'No Posts found... 🤔' );
 			exit;
@@ -188,11 +208,20 @@ class Downloader {
 			}
 			foreach ( $img_srcs as $img_src ) {
 				$parsed = wp_parse_url( $img_src );
-				if ( false === $parsed || ! isset( $parsed['host'] ) ) {
-					// Perhaps it's a relative reference path, or a `src="data:image/svg+xml;base64"`.
+				if ( false === $parsed ) {
 					continue;
+				} else if ( isset( $parsed['host'] ) ) {
+					if ( in_array( $post->ID, $img_hostnames[ $parsed['host'] ] ) ) {
+						continue;
+					}
+					$img_hostnames[ $parsed['host'] ][] = $post->ID;
+				} else {
+					if ( in_array( $post->ID, $img_hostnames[ "relative URL paths" ] ) ) {
+						continue;
+					}
+					// There could be different types of `src` e.g. `src="data:image/svg+xml;base64"`, so this won't be perfect.
+					$img_hostnames[ "relative URL paths" ][] = $post->ID;
 				}
-				$img_hostnames[ $parsed['host'] ][] = $post->ID;
 			}
 		}
 
@@ -224,12 +253,17 @@ class Downloader {
 		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
 		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
 		$post_statuses                 = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
+		$post_ids_specific             = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
 		$post_id_from                  = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
 		$post_id_to                    = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
 		$hosts_excluded                = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
 		$only_download_from_hosts      = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
 		$default_image_host_and_schema = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
 		$folder_local_images           = isset( $assoc_args['folder-local-images'] ) ? rtrim( $assoc_args['folder-local-images'], '/' ) : null;
+
+		if ( ( $post_ids_specific && $post_id_from ) || ( $post_ids_specific && $post_id_to ) ) {
+			WP_CLI::error( '❗ Sorry, you can either specify a CSV list of Post IDs, or a range of Post IDs.' );
+		}
 		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
 			WP_CLI::error( '❗ Both `--post-id-from` and `--post-id-to` ranges are required.' );
 		}
@@ -243,6 +277,7 @@ class Downloader {
 
 		// Flush the log files.
 		$logs = array(
+			$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
 			$this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ),
 			$this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ),
 			$this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ),
@@ -256,7 +291,7 @@ class Downloader {
 		}
 
 		WP_CLI::line( 'Fetching Posts...' );
-		$posts = $this->get_posts_ids_and_contents( $post_id_from, $post_id_to, $post_types, $post_statuses );
+		$posts = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
 		if ( empty( $posts ) ) {
 			WP_CLI::warning( 'No Posts found... 🤔' );
 			exit;
@@ -277,7 +312,7 @@ class Downloader {
 				$title = $img_datum[1];
 				$alt   = $img_datum[2];
 
-				// Check if this src still exists in the post content, or if in case of duplicate images it has possibly already been downloaded.
+				// Check if this image `src` was used multiple times in the content, and has possibly already downloaded.
 				if ( false === strpos( $post_content_updated, $src ) && false === strpos( $post_content_updated, esc_attr( $src ) ) ) {
 					WP_CLI::line( sprintf( '✖ skipping, already downloaded %s', $src ) );
 					continue;
@@ -297,7 +332,7 @@ class Downloader {
 					}
 				}
 
-				// Check if local image file exists, and format the src for importing or downloading.
+				// Check if the local image file exists, which will decide whether the image will be imported form file or downloaded.
 				try {
 					$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
 				} catch ( \Exception $e ) {
@@ -343,6 +378,10 @@ class Downloader {
 					? wp_get_attachment_url( $attachment_id )
 					: 'https://dry-run/new-url';
 				$post_content_updated = str_replace( array( esc_attr( $src ), $src ), $img_uri_new, $post_content_updated );
+				$this->log(
+					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
+					sprintf( 'Post ID %d ; original src %s ; new src %s ; imported attachment ID %d', $post->ID, $src, $img_uri_new, $attachment_id )
+				);
 			}
 
 			// Update the Post content.
@@ -358,7 +397,7 @@ class Downloader {
 		wp_cache_flush();
 
 		// Closing remarks.
-		$this->cli_output_warnings_for_logged_errors( $default_image_host_and_schema, $post_id_from, $post_id_to );
+		$this->cli_echo_log_info( $default_image_host_and_schema, $post_id_from, $post_id_to );
 		WP_CLI::line( sprintf( 'All done!  🙌  Took %d mins.', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 	}
 
@@ -369,7 +408,15 @@ class Downloader {
 	 * @param int    $post_id_from                 --post-id-from command argument.
 	 * @param int    $post_id_to                   --post-id-to command argument.
 	 */
-	public function cli_output_warnings_for_logged_errors( $default_image_host_and_schema, $post_id_from, $post_id_to ) {
+	public function cli_echo_log_info( $default_image_host_and_schema, $post_id_from, $post_id_to ) {
+		if ( $this->file_exists( $this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ) ) ) {
+			WP_CLI::warning(
+				sprintf(
+					'👍 For a full list of downloaded images, see `%s`.',
+					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to )
+				)
+			);
+		}
 		if ( $this->file_exists( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ) ) ) {
 			WP_CLI::warning(
 				sprintf(
@@ -411,8 +458,9 @@ class Downloader {
 	 *
 	 * @param string $src                           Img `src` URI.
 	 * @param string $folder_local_images           Path to local folder where image files can be found at.
-	 * @param string $default_image_host_and_schema Default schema+host where absolute and relative referenced image srcs can be
-	 *                                              downloaded from, e.g. 'https://dl_host` which is used for `src="/path/img.jpg"`.
+	 * @param string $default_image_host_and_schema Default schema+host used to download relative referenced URLs,
+	 *                                              e.g. if you provide the value 'https://dl_host`, it will attempt to download
+	 *                                              a relative `src="/path/img.jpg"` from 'https://dl_host/path/img.jpg'
 	 *
 	 * @return string Either a full path to a local image file, or a fully qualified HTTP path to download the image from.
 	 *
@@ -423,13 +471,14 @@ class Downloader {
 
 		/**
 		 * Three types of `src`s are presently supported:
-		 *      - an HTTP link, e.g. 'https://host.com/img.jpg'
-		 *      - an absolute reference, e.g. '/segment/img.jpg'
-		 *      - a relative reference, e.g. 'segment/img.jpg'. This could also be an `src="data:image/svg+xml;base64..."` but that is presently not supported.
+		 *      - an absolute HTTP URL, e.g. 'https://host.com/img.jpg'
+		 *      - an relative reference from root, e.g. '/segment/img.jpg'
+		 *      - a relative reference, e.g. 'segment/img.jpg'. This could also be a `src="data:image/svg+xml;base64..."`,
+		 *        or different kinds of `src` values which are presently not supported.
 		 */
-		$is_src_http         = ( 0 === strpos( strtolower( $src ), 'http' ) );
-		$is_src_absolute_ref = ! $is_src_http && ( ( 0 === strpos( strtolower( $src ), '/' ) ) );
-		$is_src_relative_ref = ! $is_src_http && ! $is_src_absolute_ref;
+		$is_src_absolute          = ( 0 === strpos( strtolower( $src ), 'http' ) );
+		$is_src_relative_root_ref = ! $is_src_absolute && ( ( 0 === strpos( strtolower( $src ), '/' ) ) );
+		$is_src_relative_ref      = ! $is_src_absolute && ! $is_src_relative_root_ref;
 
 		// Get the path segment (no host), and remove possible query params.
 		$src_path = wp_parse_url( $src )['path'];
@@ -446,20 +495,20 @@ class Downloader {
 
 		// If no local image file is used, get a fully qualified remote URI.
 		if ( ! $is_local_file ) {
-			if ( $is_src_http ) {
-				// A good old HTTP image.
+			if ( $is_src_absolute ) {
+				// A good old absolute URL.
 				$img_import_path = $src;
-			} elseif ( $is_src_absolute_ref && $default_image_host_and_schema ) {
-				// An absolute reference -- turning it to a fully qualified one.
+			} elseif ( $is_src_relative_root_ref && $default_image_host_and_schema ) {
+				// A relative reference from root -- turning it to a fully qualified (absolute) one.
 				$img_import_path = $default_image_host_and_schema . $src;
-			} elseif ( $is_src_absolute_ref && ! $default_image_host_and_schema ) {
-				// But to be able to download an absolute reference, we also need the `--default-image-host-and-schema` param.
+			} elseif ( $is_src_relative_root_ref && ! $default_image_host_and_schema ) {
+				// But to be able to download a relative from root URL, we also need the `--default-image-host-and-schema` param.
 				throw ( new RuntimeException(
 					sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', $src ),
 					self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED
 				) );
 			} elseif ( $is_src_relative_ref && $default_image_host_and_schema ) {
-				// Relative reference, also attempting to download it as an absolute one.
+				// Relative reference, also attempting to download it as an absolute one by using the `--default-image-host-and-schema` param.
 				$img_import_path = $default_image_host_and_schema . '/' . $src;
 			} elseif ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
 				throw ( new RuntimeException(
@@ -473,8 +522,8 @@ class Downloader {
 	}
 
 	/**
-	 * Returns a full list of hosts to exclude from downloading/importing. Merges this site's host with user provided
-	 * $exclude_hosts_arg list of hosts.
+	 * Returns a full list of hosts to exclude from downloading/importing. Merges this site's host (the `siteurl` Option) with the
+	 * user provided list of excluded hosts.
 	 *
 	 * @param array $excluded_hosts User specified list of hosts to exclude.
 	 *
@@ -604,6 +653,12 @@ class Downloader {
 	/**
 	 * Fetches `ID` and `post_content` from the posts table.
 	 *
+	 * Post IDs can be specified by either of these:
+	 *  1. an array of $post_ids
+	 *  2. a range of $post_id_from and $post_id_to
+	 *  3. if neither of these are given, all post IDs are fetched
+	 *
+	 * @param array|null $post_ids      IDs.
 	 * @param int|null   $post_id_from  ID from.
 	 * @param int|null   $post_id_to    ID to.
 	 * @param array|null $post_types    Post types.
@@ -612,6 +667,7 @@ class Downloader {
 	 * @return object|null
 	 */
 	private function get_posts_ids_and_contents(
+		$post_ids = null,
 		$post_id_from = null,
 		$post_id_to = null,
 		$post_types = array( 'post', 'page' ),
@@ -630,7 +686,11 @@ class Downloader {
 			array_push( $prepare_args, $post_statuse );
 		}
 
-		if ( null !== $post_id_from && null !== $post_id_to ) {
+		if ( null !== $post_ids ) {
+			$ids_placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
+			$query .= " AND ID IN ({$ids_placeholders}) ";
+			$prepare_args = array_merge( $prepare_args, $post_ids );
+		} else if ( null !== $post_id_from && null !== $post_id_to ) {
 			$query .= ' AND ID BETWEEN %d AND %d ';
 			array_push( $prepare_args, $post_id_from, $post_id_to );
 		}

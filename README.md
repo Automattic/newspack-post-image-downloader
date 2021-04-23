@@ -26,17 +26,19 @@ Also optional. Alternatively, you can specify hosts not to download images from,
 
 ### -- parallel downloading
 
-To speed up downloading, you could run several commands in parallel. This is done by grouping your existing Post IDs into several batches, and then running the command with different `--post-id-from` and `--post-id-to` ID ranges.
+To speed up downloading, you could even run several commands in parallel by splitting and grouping your Post IDs into several batches, and then running the command with different `--post-id-from` and `--post-id-to` ID ranges, or with a specific `--post-ids-csv`.
 
 ### -- downloads absolute or relative referenced URIs
 
-Except from downloading images with the standard `https://...` `src` prefix, by providing the `--default-image-host-and-schema=https://example-origin.com`, these URI types get downloaded too:
-- _absolute referenced sources_, e.g. `/path/image.jpg`,
-- the Plugin also attempts to download _relative referenced sources_, e.g. `path/image.jpg`, by treating them as absolute ones (which makes sense if the page where the images were located at is located at the root path, e.g. `https://host.com/my_post_with_images`) 
+Besides downloading images from fully qualified/absolute URLs, e.g. `https://host.com/img.jpg`, the plugin can download relative URLs if you provide the CLI param `--default-image-host-and-schema=https://example-host.com`.
 
 ### -- custom post type and post status selection
 
 By default, the Plugin downloads or imports external images from all the public Posts and Pages, and this can be customized with `--post-types` and `--post-statuses`.  
+
+### -- download images for specific Posts only
+
+You can specify a list of Post IDs by using the `--post-ids-csv` or an ID range `--post-id-from` abd `--post-id-to`.  
 
 ### -- error logging
 
