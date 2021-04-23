@@ -557,7 +557,10 @@ class Downloader {
 		}
 
 		$parsed   = wp_parse_url( $uri );
-		$host_uri = $parsed['host'];
+		$host_uri = $parsed['host'] ?? null;
+		if ( null === $host_uri ) {
+			return false;
+		}
 
 		foreach ( $hosts as $host ) {
 			if ( fnmatch( $host, $host_uri ) ) {
