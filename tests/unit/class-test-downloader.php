@@ -34,9 +34,9 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Plain HTTP src. No other params.
+	 * Plain absolute HTTP src. No other params.
 	 */
-	public function test_http_src_no_local_images_folder() {
+	public function test_absolute_src_no_local_images_folder() {
 		$src                           = 'http://host.com/path/img.jpg';
 		$folder_local_images           = null;
 		$default_image_host_and_schema = null;
@@ -47,9 +47,9 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Plain HTTP src. Path to folder with local images is provided, but the image file is not found there.
+	 * Plain absolute HTTP src. Path to folder with local images is provided, but the image file is not found there.
 	 */
-	public function test_http_src_no_local_file() {
+	public function test_absolute_src_no_local_file() {
 		$src                           = 'http://host.com/path/img.jpg';
 		$folder_local_images           = '/tmp/mock';
 		$default_image_host_and_schema = null;
@@ -60,9 +60,9 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Plain HTTP src. Path to folder with local images is provided, and the image file is found locally.
+	 * Plain absolute HTTP src. Path to folder with local images is provided, and the image file is found locally.
 	 */
-	public function test_http_src_with_local_file() {
+	public function test_absolute_src_with_local_file() {
 		$src                           = 'http://host.com/path/img.jpg';
 		$folder_local_images           = '/tmp/mock';
 		$default_image_host_and_schema = null;
@@ -77,9 +77,9 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Absolute reference src. But an exception gets thrown if the $default_image_host_and_schema param is not provided.
+	 * Relative reference to host root. But an exception gets thrown if the $default_image_host_and_schema param is not provided.
 	 */
-	public function test_absolute_ref_src_no_local_images_folder_throws_exception() {
+	public function test_relative_ref_to_root_src_no_local_images_folder_throws_exception() {
 		$this->expectException( RuntimeException::class );
 		$this->expectExceptionCode( Downloader::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED );
 
@@ -93,9 +93,9 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Absolute reference src. All needed params are provided, but the image file is not found there.
+	 * Relative reference to host root. All needed params are provided, but the image file is not found there.
 	 */
-	public function test_absolute_ref_src_no_local_file() {
+	public function test_relative_ref_to_root_src_no_local_file() {
 		$src                           = '/path/img.jpg';
 		$folder_local_images           = '/tmp/mock';
 		$default_image_host_and_schema = 'https://deault/download/from';
@@ -106,9 +106,9 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Absolute reference src. The image file is found locally.
+	 * Relative reference to host root. The image file is found locally.
 	 */
-	public function test_absolute_ref_src_with_local_file() {
+	public function test_relative_ref_to_root_src_with_local_file() {
 		$src                           = '/path/img.jpg';
 		$folder_local_images           = '/tmp/mock';
 		$default_image_host_and_schema = 'https://deault/download/from';
