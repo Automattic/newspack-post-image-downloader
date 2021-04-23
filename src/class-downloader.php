@@ -469,18 +469,7 @@ class Downloader {
 	public function get_fully_qualified_img_import_or_download_path( $src, $folder_local_images = null, $default_image_host_and_schema = null ) {
 		$img_import_path = null;
 
-		/**
-		 * Three types of `src`s are presently supported:
-		 *      - an absolute HTTP URL, e.g. 'https://host.com/img.jpg'
-		 *      - an relative reference from root, e.g. '/segment/img.jpg'
-		 *      - a relative reference, e.g. 'segment/img.jpg'. This could also be a `src="data:image/svg+xml;base64..."`,
-		 *        or different kinds of `src` values which are presently not supported.
-		 */
-		$is_src_absolute          = ( 0 === strpos( strtolower( $src ), 'http' ) );
-		$is_src_relative_root_ref = ! $is_src_absolute && ( ( 0 === strpos( strtolower( $src ), '/' ) ) );
-		$is_src_relative_ref      = ! $is_src_absolute && ! $is_src_relative_root_ref;
-
-		// Get the path segment (no host), and remove possible query params.
+		// Get the path (without host), and remove possible query params.
 		$src_path = wp_parse_url( $src )['path'];
 
 		// Try and get the local image file.
@@ -492,30 +481,37 @@ class Downloader {
 				$img_import_path = $img_local_file_path;
 			}
 		}
+		if ( $is_local_file ) {
+			return $img_import_path;
+		}
+
+		/**
+		 * Handles three types of `src`s like this:
+		 *      - an absolute HTTP URL, e.g. 'https://host.com/img.jpg'
+		 *      - a relative reference from root, e.g. '/segment/img.jpg', and uses the `--default-image-host-and-schema` to try
+		 *        and download it
+		 *      - a relative reference without the beginning `/`, e.g. 'segment/img.jpg'. Although this could also be a different
+		 *        kind of `src`, e.g. `src="data:image/svg+xml;base64..."`, it still tries to transform it to a fully qualified
+		 *        URL by using the `--default-image-host-and-schema` to download from.
+		 */
+		$is_src_absolute     = ( 0 === strpos( strtolower( $src ), 'http' ) );
+		$is_src_relative_ref = ! $is_src_absolute;
 
 		// If no local image file is used, get a fully qualified remote URI.
-		if ( ! $is_local_file ) {
-			if ( $is_src_absolute ) {
-				// A good old absolute URL.
-				$img_import_path = $src;
-			} elseif ( $is_src_relative_root_ref && $default_image_host_and_schema ) {
-				// A relative reference from root -- turning it to a fully qualified (absolute) one.
-				$img_import_path = $default_image_host_and_schema . $src;
-			} elseif ( $is_src_relative_root_ref && ! $default_image_host_and_schema ) {
-				// But to be able to download a relative from root URL, we also need the `--default-image-host-and-schema` param.
-				throw ( new RuntimeException(
-					sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', $src ),
-					self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED
-				) );
-			} elseif ( $is_src_relative_ref && $default_image_host_and_schema ) {
-				// Relative reference, also attempting to download it as an absolute one by using the `--default-image-host-and-schema` param.
-				$img_import_path = $default_image_host_and_schema . '/' . $src;
-			} elseif ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
-				throw ( new RuntimeException(
-					sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', $src ),
-					self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED
-				) );
-			}
+		if ( $is_src_absolute ) {
+			// A good old absolute URL.
+			$img_import_path = $src;
+		} else if ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
+			// Use the `--default-image-host-and-schema` to try and download a relative URL.
+			throw ( new RuntimeException(
+				sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', $src ),
+				self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED
+			) );
+		} else if ( $is_src_relative_ref && $default_image_host_and_schema ) {
+			// A relative reference from root -- turning it to a fully qualified (absolute) one.
+			$img_import_path = $default_image_host_and_schema
+				. ( ( 0 !== strpos( strtolower( $src ), '/' ) ) ? '/' : '' )
+				. $src;
 		}
 
 		return $img_import_path;
