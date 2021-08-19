@@ -308,7 +308,7 @@ class Downloader {
 
 			$post_content_updated = $post->post_content;
 			foreach ( $img_data as $img_datum ) {
-				$src   = $img_datum[0];
+				$src   = trim( $img_datum[0] );
 				$title = $img_datum[1];
 				$alt   = $img_datum[2];
 

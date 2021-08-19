@@ -229,47 +229,52 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * @return array[]
 	 */
 	public function providerUriHostMatching() {
-		 return array(
-			 array(
-				 'https://host1.com/path/img.jpg',
-				 array( 'host1.com' ),
-				 true,
-			 ),
-			 array(
-				 'https://host1.com/path/img.jpg',
-				 array( 'host2.com' ),
-				 false,
-			 ),
-			 array(
-				 'https://host1.com/path/img.jpg',
-				 array( '*.host1.com' ),
-				 false,
-			 ),
-			 array(
-				 'https://host1.com/path/img.jpg',
-				 array( 'host1.*' ),
-				 true,
-			 ),
-			 array(
-				 'https://host1.com/path/img.jpg',
-				 array( '*.host1.*' ),
-				 false,
-			 ),
-			 array(
-				 'https://www.host1.com/path/img.jpg',
-				 array( '*.host1.com' ),
-				 true,
-			 ),
-			 array(
-				 'https://www.host1.com/path/img.jpg',
-				 array( 'www.host1.*' ),
-				 true,
-			 ),
-			 array(
-				 'https://www.host1.com/path/img.jpg',
-				 array( 'www.host2.*' ),
-				 true,
-			 ),
-		 );
+		return array(
+			array(
+				'https://host1.com/path/img.jpg',
+				array( 'host1.com' ),
+				true,
+			),
+			array(
+				'    https://host1.com/path/with-spaces.jpg    ',
+				array( 'host1.com' ),
+				true,
+			),
+			array(
+				'https://host1.com/path/img.jpg',
+				array( 'host2.com' ),
+				false,
+			),
+			array(
+				'https://host1.com/path/img.jpg',
+				array( '*.host1.com' ),
+				false,
+			),
+			array(
+				'https://host1.com/path/img.jpg',
+				array( 'host1.*' ),
+				true,
+			),
+			array(
+				'https://host1.com/path/img.jpg',
+				array( '*.host1.*' ),
+				false,
+			),
+			array(
+				'https://www.host1.com/path/img.jpg',
+				array( '*.host1.com' ),
+				true,
+			),
+			array(
+				'https://www.host1.com/path/img.jpg',
+				array( 'www.host1.*' ),
+				true,
+			),
+			array(
+				'https://www.host1.com/path/img.jpg',
+				array( 'www.host2.*' ),
+				true,
+			),
+		);
 	}
 }
