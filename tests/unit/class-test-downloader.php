@@ -25,12 +25,20 @@ class Test_Downloader extends WP_UnitTestCase {
 	private $downloader;
 
 	/**
+	 * WP Block manipulator dependency dummy.
+	 *
+	 * @var stdClass
+	 */
+	private $block_manipulator_dummy;
+
+	/**
 	 * Override setUp.
 	 *
 	 * @throws RuntimeException In case a temp dir could not have been created.
 	 */
 	public function setUp() {
-		$this->downloader = new Downloader();
+		$this->block_manipulator_dummy = new \stdClass();
+		$this->downloader = new Downloader( $this->block_manipulator_dummy );
 	}
 
 	/**
@@ -195,6 +203,7 @@ class Test_Downloader extends WP_UnitTestCase {
 	 */
 	private function create_downloader_partial_mock_with_file_exists_method( $local_file, $response ) {
 		$partial_mock = $this->getMockBuilder( Downloader::class )
+							 ->setConstructorArgs( [ $this->block_manipulator_dummy ] )
 							 ->setMethods( array( 'file_exists' ) )
 							 ->getMock();
 

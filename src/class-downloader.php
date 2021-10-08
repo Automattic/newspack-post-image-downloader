@@ -10,6 +10,7 @@ namespace NewspackPostImageDownloader;
 use WP_CLI;
 use Symfony\Component\DomCrawler\Crawler;
 use RuntimeException;
+use NewspackPostImageDownloader\WpBlockManipulator;
 
 /**
  * Image Downloader CLI commands and logic.
@@ -27,6 +28,8 @@ class Downloader {
 	const LOG_FILE_ERR_IMPORT_FAILED         = 'imagedownloader__err_import.log';
 	const LOG_FILE_ERR_DOWNLOADING_REFERENCE = 'imagedownloader__err_downloading_reference.log';
 	const LOG_FILE_ERR_OTHER                 = 'imagedownloader__err_other.log';
+	const LOG_FILE_DEDUPLICATION             = 'imagedownloader__deduplication.log';
+
 
 	/**
 	 * Custom codes for local runtime exception handling.
@@ -34,6 +37,20 @@ class Downloader {
 	const EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED = 100;
 	const EXCEPTION_CODE_DOWNLOAD_FAILED          = 101;
 	const EXCEPTION_CODE_IMPORT_FAILED            = 102;
+
+	/**
+	 * @var WpBlockManipulator WpBlockManipulator object.
+	 */
+	private $block_manipulator;
+
+	/**
+	 * Downloader constructor.
+	 *
+	 * @param $block_manipulator
+	 */
+	public function __construct( $block_manipulator ) {
+		$this->block_manipulator = new WpBlockManipulator();
+	}
 
 	/**
 	 * Registers CLI commands.
@@ -168,6 +185,36 @@ class Downloader {
 				),
 			)
 		);
+		WP_CLI::add_command(
+			'newspack-post-image-downloader dedupe-images',
+			array( $this, 'cmd_dedupe_images' ),
+			array(
+				'shortdesc' => 'Dedupes images from content: leaves just the first image file, replaces throughout content.',
+				'synopsis'  => array(
+					array(
+						'type'        => 'flag',
+						'name'        => 'dry-run',
+						'description' => 'Perform a dry run, making no changes.',
+						'optional'    => true,
+					),
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-types',
+						'description' => 'Optional CSV Post types to replace content in. Defaults are `post,page`',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-statuses',
+						'description' => 'Optional CSV Post statuses. Defaults is `publish,draft',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+				),
+
+			)
+		);
 	}
 
 	/**
@@ -242,13 +289,6 @@ class Downloader {
 		WP_CLI::line( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 	}
 
-	/**
-	 * Callable for `newspack-post-image-downloader import-images`.
-	 * See command description in \NewspackPostImageDownloader\Downloader::register_commands.
-	 *
-	 * @param array $args       CLI arguments.
-	 * @param array $assoc_args CLI associative arguments.
-	 */
 	public function cmd_import_images( $args, $assoc_args ) {
 		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
 		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
@@ -399,6 +439,186 @@ class Downloader {
 		// Closing remarks.
 		$this->cli_echo_log_info( $default_image_host_and_schema, $post_id_from, $post_id_to );
 		WP_CLI::line( sprintf( 'All done!  🙌  Took %d mins.', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
+	}
+
+
+	/**
+	 * Callable for `newspack-post-image-downloader dedupe-images`.
+	 * See command description in \NewspackPostImageDownloader\Downloader::register_commands.
+	 *
+	 * @param array $args       CLI arguments.
+	 * @param array $assoc_args CLI associative arguments.
+	 */
+	public function cmd_dedupe_images( $args, $assoc_args ) {
+		$dry_run           = isset( $assoc_args['dry-run'] ) ? true : false;
+		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
+		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish', 'draft' );
+
+
+		$time_start     = microtime( true );
+		global $wpdb;
+
+
+		WP_CLI::log( '👉 Getting attachments...' );
+		$attachments = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}posts WHERE post_type like 'attachment'" );
+
+
+		WP_CLI::log( sprintf( '👉 Scanning %d attachment files for duplicates...', count( $attachments ) ) );
+		// Single or duplicate files' IDs grouped by their MD5.
+		$md5s_ids = [];
+		$progress = \WP_CLI\Utils\make_progress_bar( 'Scanning...', count( $attachments ) );
+		foreach( $attachments as $attachment ){
+			$progress->tick();
+			$md5s_ids[ md5_file( $attachment->guid ) ] = $attachment->ID;
+		}
+		$progress->finish();
+
+		// Just the duplicates, gets their `src`s.
+		$dupes = [];
+		foreach ( $md5s_ids as $key_ids => $ids ) {
+			if ( count( $md5s_ids[ $ids ] > 1 ) ) {
+				$this_key_dupes = count( $dupes );
+				$log_dupe_atts = 'Dupes found: ';
+				foreach ( $md5s_ids[ $ids ] as $key_id => $id ) {
+					$src = wp_get_attachment_url( $id );
+					$dupes[ $this_key_dupes ][] = [
+						'ID' => $id,
+						'src' => $src,
+					];
+					$log_dupe_atts .= sprintf( "\n- %d %s", $id, $src );
+				}
+
+				// Log all found dupes.
+				$this->log( self::LOG_FILE_DEDUPLICATION, $log_dupe_atts );
+			}
+		}
+		if ( empty( $dupes ) ) {
+			WP_CLI::success( 'No duplicate attachments found, things are good! 👍' );
+			WP_CLI::log( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
+			exit;
+		}
+
+
+		// Stamp the log file.
+		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( '[%s] %sStarted.', date('Y-m-d H:i:s'), $dry_run ? 'Dry-run ' : '' ) );
+
+
+		WP_CLI::success( sprintf( 'Found total %d duplicate files 👍', count( $dupes ) ) );
+		WP_CLI::log( '👉 Now removing usage of the duplicated files in all content...' );
+		WP_CLI::log( sprintf( 'Fetching %s...', implode( ',', $post_types ) ) );
+		$posts = $this->get_posts_ids_and_contents( null, null, null, $post_types, $post_statuses );
+		if ( empty( $posts ) ) {
+			WP_CLI::warning( 'No Posts found... 🤔' );
+			exit;
+		}
+		$progress = \WP_CLI\Utils\make_progress_bar( 'Replacing usage of dupes...', count( $posts ) );
+		$post_ids_updated = [];
+		foreach ( $posts as $key_post => $post ) {
+			$progress->tick();
+			$log_post_updates = '';
+
+			// Get post data.
+			$post_was_updated     = false;
+			$post_content_updated = $post->post_content;
+			$post_featured_img_id = get_post_meta( $post->ID, '_thumbnail_id', true );
+
+			// The first dupe gets used, others get replaced by it.
+			$first_src = $dupes[0][ 'src' ];
+			$first_id  = $dupes[0][ 'ID' ];
+			foreach ( $dupes as $key_dupe => $dupe ) {
+				if ( 0 == $key_dupe ) {
+					continue;
+				}
+				$replaced_src = $dupes[ $key_dupe ][ 'src' ];
+				$replaced_id  = $dupes[ $key_dupe ][ 'ID' ];
+				if ( false == strpos( $post_content_updated, $replaced_src ) ) {
+					continue;
+				}
+
+				WP_CLI::log( sprintf( 'Post ID %d:', $post->ID ) );
+
+				// Update `src`s content.
+				$post_content_updated = str_replace( $replaced_src, $first_src, $post_content_updated );
+				if ( $post_content_updated != $post->post_content ) {
+					$log = sprintf( '- img %d %s changed to %d %s', $replaced_id, $replaced_src, $first_id, $first_src );
+					WP_CLI::log( $log );
+					$log_post_updates .= "\n" . $log;
+				}
+
+				// Update image block attachment ID.
+				$matches = $this->block_manipulator->match_wp_blocks( 'wp:image', $post_content_updated );
+				foreach ( $matches as $match ) {
+					$matched_block = $matched_block_updated = $match[0][0];
+					$id_this = $this->block_manipulator->get_block_attribute_value( $matched_block, 'id' );
+					if ( $replaced_id == $id_this ) {
+						$matched_block_updated = $this->block_manipulator->update_block_attribute( $matched_block, 'id', $first_id );
+					}
+					if ( $matched_block != $matched_block_updated ) {
+						$post_content_updated = str_replace( $matched_block, $matched_block_updated, $post_content_updated );
+					}
+				}
+
+				// Update Featured Image.
+				if ( $replaced_id == $post_featured_img_id ) {
+					if ( ! $dry_run ) {
+						update_post_meta( $post->ID, '_thumbnail_id', $first_id );
+					}
+					$post_was_updated = true;
+					$log = sprintf( '- featured img %d changed to %d', $post_featured_img_id, $first_id );
+					WP_CLI::log( $log );
+					$log_post_updates .= "\n" . $log;
+				}
+			}
+
+			if ( $post_content_updated != $post->post_content ) {
+				if ( ! $dry_run ) {
+					$wpdb->update(
+						$wpdb->prefix . 'posts',
+						[ 'post_content' => $post_content_updated ],
+						[ 'ID' => $post->ID ]
+					);
+				}
+				$post_was_updated = true;
+			}
+
+			if ( true === $post_was_updated ) {
+				WP_CLI::success( 'Updated.' );
+				$post_ids_updated[] = $post->ID;
+
+				// Log all changes to post.
+				$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( "Post ID %d updated:\n%s", $post->ID, $log_post_updates ) );
+			}
+		}
+		$progress->finish();
+		WP_CLI::success( 'Removed usage of all duplicates in content! 👍' );
+
+
+		WP_CLI::log( '👉 Now physically deleting duplicate files...' );
+		// First dupe was kept and used, others can be deleted.
+		$progress = \WP_CLI\Utils\make_progress_bar( 'Deleting dupes...', count( $dupes ) );
+		$deleted_ids = [];
+		foreach ( $dupes as $key_dupe => $dupe ) {
+			$progress->tick();
+			if ( 0 == $key_dupe ) {
+				continue;
+			}
+
+			$replaced_id = $dupes[ $key_dupe ][ 'ID' ];
+			wp_delete_attachment( $replaced_id );
+			$deleted_ids[] = $replaced_src;
+		}
+		$progress->finish();
+		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( "Total %d IDs deleted: %s", count( $deleted_ids ), implode( ',', $deleted_ids ) ) );
+		WP_CLI::success( sprintf( 'Total %s duplicate files deleted 👍 Check your %s log file for details 📝', count( $deleted_ids ), self::LOG_FILE_DEDUPLICATION ) );
+
+
+		// Stamp the log file.
+		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( '[%s] %sFinished.', date('Y-m-d H:i:s'), $dry_run ? 'Dry-run ' : '' ) );
+		// Let the $wpdb->update() sink in.
+		wp_cache_flush();
+
+
+		WP_CLI::log( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 	}
 
 	/**
