@@ -34,7 +34,7 @@ class DataProviderWPBlockManipulator {
 CONTENT;
 	}
 
-	public function get_content_with_no_blocks() {
+	public function get_content_with_no_image_blocks() {
 		return <<<CONTENT
 <!-- wp:paragraph -->
 <p>some text</p>

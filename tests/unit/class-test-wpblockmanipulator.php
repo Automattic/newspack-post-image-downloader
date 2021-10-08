@@ -61,7 +61,7 @@ class Test_WPBlockManipulator extends WP_UnitTestCase {
 	 * @covers WpBlockManipulator::match_wp_blocks
 	 */
 	public function test_matches_blocks_no_results() {
-		$content = $this->data_provider->get_content_with_no_blocks();
+		$content = $this->data_provider->get_content_with_no_image_blocks();
 
 		$matches = $this->manipulator->match_wp_blocks( 'wp:image', $content );
 
