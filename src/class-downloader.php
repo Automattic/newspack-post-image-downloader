@@ -289,6 +289,13 @@ class Downloader {
 		WP_CLI::line( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 	}
 
+	/**
+	 * Callable for `newspack-post-image-downloader import-images`.
+	 * See command description in \NewspackPostImageDownloader\Downloader::register_commands.
+	 *
+	 * @param array $args       CLI arguments.
+	 * @param array $assoc_args CLI associative arguments.
+	 */
 	public function cmd_import_images( $args, $assoc_args ) {
 		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
 		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
