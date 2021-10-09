@@ -461,42 +461,51 @@ class Downloader {
 		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
 		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish', 'draft' );
 
-
-		$time_start     = microtime( true );
 		global $wpdb;
+		$time_start = microtime( true );
+		unlink( self::LOG_FILE_DEDUPLICATION );
 
 
-		WP_CLI::log( '👉 Getting attachments...' );
+		WP_CLI::log( '👉 Fetching list of attachments...' );
 		$attachments = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}posts WHERE post_type like 'attachment'" );
+		if ( empty( $attachments ) ) {
+			WP_CLI::exit( 'No Attachments found... 🤔' );
+		}
 
 
-		WP_CLI::log( sprintf( '👉 Scanning %d attachment files for duplicates...', count( $attachments ) ) );
-		// Single or duplicate files' IDs grouped by their MD5.
+		WP_CLI::log( sprintf( '👉 Scanning total %d attachment files for duplicates...', count( $attachments ) ) );
 		$md5s_ids = [];
 		$progress = \WP_CLI\Utils\make_progress_bar( 'Scanning...', count( $attachments ) );
 		foreach( $attachments as $attachment ){
-			$progress->tick();
+			if ( ! $this->file_exists( $attachment->guid ) ) {
+				$log = sprintf( 'Att ID %d file not found %s', $attachment->ID, $attachment->guid );
+				WP_CLI::warning( $log );
+				$this->log( self::LOG_FILE_DEDUPLICATION, $log );
+				continue;
+			}
 			$md5s_ids[ md5_file( $attachment->guid ) ] = $attachment->ID;
+			$progress->tick();
 		}
 		$progress->finish();
 
-		// Just the duplicates, gets their `src`s.
+
+		// Get info about dupes.
 		$dupes = [];
-		foreach ( $md5s_ids as $key_ids => $ids ) {
+		foreach ( $md5s_ids as $ids ) {
 			if ( count( $md5s_ids[ $ids ] > 1 ) ) {
 				$this_key_dupes = count( $dupes );
-				$log_dupe_atts = 'Dupes found: ';
+				$log_group_of_dupes = 'These attachments are duplicates:';
 				foreach ( $md5s_ids[ $ids ] as $key_id => $id ) {
 					$src = wp_get_attachment_url( $id );
 					$dupes[ $this_key_dupes ][] = [
 						'ID' => $id,
 						'src' => $src,
 					];
-					$log_dupe_atts .= sprintf( "\n- %d %s", $id, $src );
+					$log_group_of_dupes .= sprintf( "\n→ %d %s", $id, $src );
 				}
 
-				// Log all found dupes.
-				$this->log( self::LOG_FILE_DEDUPLICATION, $log_dupe_atts );
+				// Log this group of dupes.
+				$this->log( self::LOG_FILE_DEDUPLICATION, $log_group_of_dupes );
 			}
 		}
 		if ( empty( $dupes ) ) {
@@ -504,60 +513,49 @@ class Downloader {
 			WP_CLI::log( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 			exit;
 		}
-
-
-		// Stamp the log file.
-		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( '[%s] %sStarted.', date('Y-m-d H:i:s'), $dry_run ? 'Dry-run ' : '' ) );
-
-
 		WP_CLI::success( sprintf( 'Found total %d duplicate files 👍', count( $dupes ) ) );
-		WP_CLI::log( '👉 Now removing usage of the duplicated files in all content...' );
-		WP_CLI::log( sprintf( 'Fetching %s...', implode( ',', $post_types ) ) );
+
+
+		WP_CLI::log( '👉 Fixing use of duplicates throughout the content -- the first duplicate is used, other dupes get replaced by it...' );
+		WP_CLI::log( 'Fetching Posts...' );
 		$posts = $this->get_posts_ids_and_contents( null, null, null, $post_types, $post_statuses );
 		if ( empty( $posts ) ) {
-			WP_CLI::warning( 'No Posts found... 🤔' );
-			exit;
+			WP_CLI::exit( 'No %s %s found... 🤔', implode( ',', $post_types ), implode( ',', $post_statuses ) );
 		}
-		$progress = \WP_CLI\Utils\make_progress_bar( 'Replacing usage of dupes...', count( $posts ) );
-		$post_ids_updated = [];
+		$progress = \WP_CLI\Utils\make_progress_bar( 'Fixing dupes...', count( $posts ) );
 		foreach ( $posts as $key_post => $post ) {
-			$progress->tick();
-			$log_post_updates = '';
+			$log_post = sprintf( 'Post ID %d updates:', $post->ID );
 
-			// Get post data.
-			$post_was_updated     = false;
+			// Get Post data.
 			$post_content_updated = $post->post_content;
 			$post_featured_img_id = get_post_meta( $post->ID, '_thumbnail_id', true );
 
-			// The first dupe gets used, others get replaced by it.
-			$first_src = $dupes[0][ 'src' ];
-			$first_id  = $dupes[0][ 'ID' ];
+			// The first dupe will be used, other dupes get replaced by it.
 			foreach ( $dupes as $key_dupe => $dupe ) {
 				if ( 0 == $key_dupe ) {
+					$first_src = $dupe[ 'src' ];
+					$first_id  = $dupe [ 'ID' ];
 					continue;
 				}
-				$replaced_src = $dupes[ $key_dupe ][ 'src' ];
-				$replaced_id  = $dupes[ $key_dupe ][ 'ID' ];
+
+				$replaced_src = $dupe[ 'src' ];
+				$replaced_id  = $dupe[ 'ID' ];
 				if ( false == strpos( $post_content_updated, $replaced_src ) ) {
 					continue;
 				}
 
-				WP_CLI::log( sprintf( 'Post ID %d:', $post->ID ) );
-
-				// Update `src`s content.
+				// Update `src`s in content.
 				$post_content_updated = str_replace( $replaced_src, $first_src, $post_content_updated );
 				if ( $post_content_updated != $post->post_content ) {
-					$log = sprintf( '- img %d %s changed to %d %s', $replaced_id, $replaced_src, $first_id, $first_src );
-					WP_CLI::log( $log );
-					$log_post_updates .= "\n" . $log;
+					$log_post .= "\n" . sprintf( '✔ ID %d %s replaced by ID %d %s', $replaced_id, $replaced_src, $first_id, $first_src );
 				}
 
-				// Update image block attachment ID.
+				// Update Kmage Block attachment ID attribute.
 				$matches = $this->block_manipulator->match_wp_blocks( 'wp:image', $post_content_updated );
 				foreach ( $matches as $match ) {
 					$matched_block = $matched_block_updated = $match[0][0];
-					$id_this = $this->block_manipulator->get_block_attribute_value( $matched_block, 'id' );
-					if ( $replaced_id == $id_this ) {
+					$id_matched = $this->block_manipulator->get_block_attribute_value( $matched_block, 'id' );
+					if ( $replaced_id == $id_matched ) {
 						$matched_block_updated = $this->block_manipulator->update_block_attribute( $matched_block, 'id', $first_id );
 					}
 					if ( $matched_block != $matched_block_updated ) {
@@ -570,10 +568,7 @@ class Downloader {
 					if ( ! $dry_run ) {
 						update_post_meta( $post->ID, '_thumbnail_id', $first_id );
 					}
-					$post_was_updated = true;
-					$log = sprintf( '- featured img %d changed to %d', $post_featured_img_id, $first_id );
-					WP_CLI::log( $log );
-					$log_post_updates .= "\n" . $log;
+					$log_post .= "\n" . sprintf( '✔ featured img %d changed to %d', $post_featured_img_id, $first_id );
 				}
 			}
 
@@ -585,42 +580,36 @@ class Downloader {
 						[ 'ID' => $post->ID ]
 					);
 				}
-				$post_was_updated = true;
+
+				WP_CLI::success( $log_post );
+				$this->log( self::LOG_FILE_DEDUPLICATION, $log_post );
 			}
 
-			if ( true === $post_was_updated ) {
-				WP_CLI::success( 'Updated.' );
-				$post_ids_updated[] = $post->ID;
-
-				// Log all changes to post.
-				$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( "Post ID %d updated:\n%s", $post->ID, $log_post_updates ) );
-			}
+			$progress->tick();
 		}
 		$progress->finish();
 		WP_CLI::success( 'Removed usage of all duplicates in content! 👍' );
 
 
-		WP_CLI::log( '👉 Now physically deleting duplicate files...' );
-		// First dupe was kept and used, others can be deleted.
+		WP_CLI::log( '👉 Now deleting unused duplicate files...' );
 		$progress = \WP_CLI\Utils\make_progress_bar( 'Deleting dupes...', count( $dupes ) );
 		$deleted_ids = [];
 		foreach ( $dupes as $key_dupe => $dupe ) {
-			$progress->tick();
+			// The first dupe was used, others can be deleted.
 			if ( 0 == $key_dupe ) {
 				continue;
 			}
 
 			$replaced_id = $dupes[ $key_dupe ][ 'ID' ];
 			wp_delete_attachment( $replaced_id );
-			$deleted_ids[] = $replaced_src;
+			$deleted_ids[] = $replaced_id;
+			$progress->tick();
 		}
 		$progress->finish();
 		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( "Total %d IDs deleted: %s", count( $deleted_ids ), implode( ',', $deleted_ids ) ) );
-		WP_CLI::success( sprintf( 'Total %s duplicate files deleted 👍 Check your %s log file for details 📝', count( $deleted_ids ), self::LOG_FILE_DEDUPLICATION ) );
+		WP_CLI::success( sprintf( 'Total %s duplicates deleted 👍 Check %s for details 📝', count( $deleted_ids ), self::LOG_FILE_DEDUPLICATION ) );
 
 
-		// Stamp the log file.
-		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( '[%s] %sFinished.', date('Y-m-d H:i:s'), $dry_run ? 'Dry-run ' : '' ) );
 		// Let the $wpdb->update() sink in.
 		wp_cache_flush();
 
