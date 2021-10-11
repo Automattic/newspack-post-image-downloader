@@ -551,6 +551,7 @@ class Downloader {
 
 					$replaced_src = $dupe[ 'src' ];
 					$replaced_id  = $dupe[ 'ID' ];
+					$replacement_done = false;
 
 					// Update the Post's Featured Image, if this $replaced_id dupe was used.
 					if ( $replaced_id == $post_featured_img_id ) {
@@ -571,13 +572,15 @@ class Downloader {
 
 						$block_html_updated = $this->image_block_update_image( $block_html, $first_id, $first_src );
 						$post_content_updated = str_replace( $block_html, $block_html_updated, $post_content_updated );
+						$replacement_done = true;
 					}
 
 					// Also replace plain `src`s in non-block content.
+					$replacement_done = $replacement_done || strpos( $post_content_updated, $replaced_src );
 					$post_content_updated = str_replace( $replaced_src, $first_src, $post_content_updated );
 
 					// Log the `src` update.
-					if ( $post_content_updated != $post->post_content ) {
+					if ( $replacement_done ) {
 						$log_post .= "\n" . sprintf( '✔ ID %d %s replaced with ID %d %s', $replaced_id, $replaced_src, $first_id, $first_src );
 					}
 				}
