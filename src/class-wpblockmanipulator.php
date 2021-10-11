@@ -22,7 +22,7 @@ class WpBlockManipulator {
 		%1$s        # element name/designation, should be substituted by using sprintf(), eg. sprintf( $this_pattern, \'wp:video\' );
 		\s          # followed by a space
 		--\>)       # end of block
-				    # "s" modifier also needed here to match accross multi-lines
+				    # "s" modifier also needed here to match across multi-lines
 		|xims';
 
 
@@ -92,12 +92,10 @@ class WpBlockManipulator {
 			$json_part_updated = json_encode( $attributes );
 			$block_element_1st_line_patched = str_replace( $json_part, $json_part_updated, $block_element_1st_line );
 		} else {
-			// Add attributes section.
+			// Insert the whole attributes section.
 			$json_part = json_encode( [ $attribute => $new_value ] );
 			$pos_closing = strpos( $block_element_1st_line, '-->' );
-			$block_element_1st_line_patched = substr( $block_element_1st_line, 0, $pos_closing )
-			                                  . $json_part
-			                                  . ' -->';
+			$block_element_1st_line_patched = substr( $block_element_1st_line, 0, $pos_closing ) . $json_part . ' -->';
 		}
 
 		$block_element_lines[0] = $block_element_1st_line_patched;
