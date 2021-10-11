@@ -22,7 +22,7 @@ class WpBlockManipulator {
 		%1$s        # element name/designation, should be substituted by using sprintf(), eg. sprintf( $this_pattern, \'wp:video\' );
 		\s          # followed by a space
 		--\>)       # end of block
-				    # "s" modifier also needed here to match across multi-lines
+					# "s" modifier needed to match across multi-lines
 		|xims';
 
 
