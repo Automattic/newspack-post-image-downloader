@@ -523,7 +523,7 @@ class Downloader {
 			WP_CLI::log( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 			exit;
 		}
-		WP_CLI::success( sprintf( 'Found total %d duplicate files 👍', $dupes_count ) );
+		WP_CLI::success( sprintf( 'Found total %d duplicate files.', $dupes_count ) );
 
 
 		WP_CLI::log( '👉 Fetching Posts...' );
@@ -536,7 +536,7 @@ class Downloader {
 		WP_CLI::log( '👉 Fixing dupes in content -- the first dupe is kept, other dupes replaced by it...' );
 		$progress = \WP_CLI\Utils\make_progress_bar( 'Fixing dupes...', count( $posts ) );
 		foreach ( $posts as $key_post => $post ) {
-			$log_post = sprintf( 'Post ID %d :', $post->ID );
+			$log_post = sprintf( 'Post ID %d:', $post->ID );
 			$post_content_updated = $post->post_content;
 			$post_featured_img_id = get_post_meta( $post->ID, '_thumbnail_id', true );
 
@@ -557,7 +557,7 @@ class Downloader {
 						if ( ! $dry_run ) {
 							update_post_meta( $post->ID, '_thumbnail_id', $first_id );
 						}
-						$log_post .= "\n" . sprintf( '✔ featured img %d changed to %d', $post_featured_img_id, $first_id );
+						$log_post .= "\n" . sprintf( '✔ featured img ID %d changed to ID %d', $post_featured_img_id, $first_id );
 					}
 
 					// Replace this dupe's Image Block(s) with the first image.
@@ -569,7 +569,7 @@ class Downloader {
 							continue;
 						}
 
-						$block_html_updated = $this->change_image_blocks_image( $block_html, $first_id, $first_src );
+						$block_html_updated = $this->image_block_update_image( $block_html, $first_id, $first_src );
 						$post_content_updated = str_replace( $block_html, $block_html_updated, $post_content_updated );
 					}
 
@@ -622,87 +622,17 @@ class Downloader {
 			$progress->tick();
 		}
 		$progress->finish();
-		$this->log( self::LOG_FILE_DEDUPLICATION, sprintf( "Total %d IDs deleted: %s", count( $deleted_ids ), implode( ',', $deleted_ids ) ) );
-		WP_CLI::success( sprintf( 'Total %s duplicates deleted 👍 Check %s for details 📝', count( $deleted_ids ), self::LOG_FILE_DEDUPLICATION ) );
+		$log = sprintf( "Total %d IDs deleted: %s", count( $deleted_ids ), implode( ',', $deleted_ids ) );
+		$this->log( self::LOG_FILE_DEDUPLICATION, $log );
+		WP_CLI::success( $log );
 
 
 		// Let the $wpdb->update() sink in.
 		wp_cache_flush();
 
 
+		WP_CLI::success( sprintf( 'Check %s for details 📝', self::LOG_FILE_DEDUPLICATION ) );
 		WP_CLI::log( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
-	}
-
-	/**
-	 * Changes image displayed in an Image Block.
-	 *
-	 * Image Blocks can use automagical {FILE_NAME}-1024x439.{EXTENSION} resolution modifications, and we want to keep all the styling.
-	 *
-	 * @param string $block_html Block HTML.
-	 * @param string $new_id     New image ID.
-	 * @param string $new_src    New image `src`.
-	 *
-	 * @return string Updated Block HTML.
-	 */
-	public function change_image_blocks_image( $block_html, $new_id, $new_src ) {
-		$block_html_updated = $block_html;
-		$id_block = $this->block_manipulator->get_block_attribute_value( $block_html_updated, 'id' );
-		$srcs_block = $this->get_all_img_srcs( $block_html );
-			// TODO Improve to using $this->dom_crawler;
-		$src_block = $srcs_block[0] ?? null;
-		if ( ! $src_block ) {
-			return $block_html;
-		}
-
-		// Update Image Block's attachment ID attribute.
-		$block_html_updated = $this->block_manipulator->update_block_attribute( $block_html_updated, 'id', $new_id );
-
-		// Get block `src`'s query params.
-		$src_block_pathinfo = pathinfo( $src_block );
-		$pos_questionmark = strpos( $src_block_pathinfo[ 'extension' ], '?' );
-		$src_block_query_params = $pos_questionmark ? substr( $src_block_pathinfo[ 'extension' ], $pos_questionmark + 1 ) : '';
-
-		// Get block's current custom image resolution in filename -- e.g. `{FILENAME}-1024x439.{EXTENSION}`.
-		$resolution = $this->get_image_custom_resolution_modifier( $src_block, $id_block );
-
-		// New src with custom resolution and custom query params.
-		$new_src_pathinfo = pathinfo( $new_src );
-		$new_src_filename = str_replace( $new_src_pathinfo[ 'extension' ], '', $new_src_pathinfo[ 'filename' ] );
-
-		// Let's put together the new `src`; start by 'dirname'.
-		$new_src_customized = $new_src_pathinfo[ 'dirname' ];
-		// Add filename with custom resolution modifier
-		$new_src_customized .= '/' . $new_src_filename . $resolution . '.' . $new_src_pathinfo[ 'extension' ];
-		// Add custom query params.
-		$new_src_customized .= ! empty( $src_block_query_params ) ? '?' . $src_block_query_params : '';
-
-		// Replace the src image by keeping all image customizations.
-		$block_html_updated = str_replace( $src_block, $new_src_customized, $block_html_updated );
-
-		return $block_html_updated;
-	}
-
-	/**
-	 * Image Blocks can use {FILE_NAME}-1024x439.{EXTENSION} resolution modifiers. This gets and returns such a modifier, if used.
-	 *
-	 * @param string $src An image `src` which possibly contains a resolution modifier in its filename.
-	 * @param int    $id  This $src image's Attachment ID.
-	 *
-	 * @return string The resolution filename modifier, e.g. '-1024x439', or empty if not used.
-	 */
-	public function get_image_custom_resolution_modifier( $src, $id ) {
-		// Get blocks current custom image resolution in filename -- e.g. `{FILENAME}-1024x439.{EXTENSION}`.
-		$src_pathinfo = pathinfo( $src );
-		$src_filename = str_replace( $src_pathinfo[ 'extension' ], '', $src_pathinfo[ 'filename' ] );
-
-		// Compare the current `src` with the Attachment's original (unmodified) src.
-		$src_original = $this->wp_get_attachment_url( $id );
-		$src_original_pathinfo = pathinfo( $src_original );
-		$src_original_filename = str_replace( $src_original_pathinfo[ 'extension' ], '', $src_original_pathinfo[ 'filename' ] );
-
-		$resolution = str_replace( $src_original_filename, '', $src_filename );
-
-		return $resolution;
 	}
 
 	/**
@@ -1046,6 +976,81 @@ class Downloader {
 		}
 
 		return $extension ? $extension : null;
+	}
+
+	/**
+	 * Changes image displayed in an Image Block.
+	 *
+	 * Image Blocks can use automagical {FILE_NAME}-1024x439.{EXTENSION} resolution modifications, and we want to keep all the styling.
+	 *
+	 * @param string $block_html Block HTML.
+	 * @param string $new_id     New image ID.
+	 * @param string $new_src    New image `src`.
+	 *
+	 * @return string Updated Block HTML.
+	 */
+	public function image_block_update_image( $block_html, $new_id, $new_src ) {
+		$block_html_updated = $block_html;
+		$id_block = $this->block_manipulator->get_block_attribute_value( $block_html_updated, 'id' );
+		$srcs_block = $this->get_all_img_srcs( $block_html );
+		// TODO Improve to using $this->dom_crawler;
+		$src_block = $srcs_block[0] ?? null;
+		if ( ! $src_block ) {
+			return $block_html;
+		}
+
+		// Update Image Block's attachment ID attribute -- must be a strict integer for Gutenberg to accept the new `id` value.
+		$block_html_updated = $this->block_manipulator->update_block_attribute( $block_html_updated, 'id', (int) $new_id );
+
+		// Get block `src`'s query params.
+		$src_block_pathinfo = pathinfo( $src_block );
+		$pos_questionmark = strpos( $src_block_pathinfo[ 'extension' ], '?' );
+		$src_block_query_params = $pos_questionmark ? substr( $src_block_pathinfo[ 'extension' ], $pos_questionmark + 1 ) : '';
+
+		// Get block's current custom image resolution in filename -- e.g. `{FILENAME}-1024x439.{EXTENSION}`.
+		$resolution = $this->get_image_custom_resolution_modifier( $src_block, $id_block );
+
+		// New src with custom resolution and custom query params.
+		$new_src_pathinfo = pathinfo( $new_src );
+		$new_src_filename = str_replace( $new_src_pathinfo[ 'extension' ], '', $new_src_pathinfo[ 'filename' ] );
+
+		// Let's put together the new `src`; start by 'dirname'.
+		$new_src_customized = $new_src_pathinfo[ 'dirname' ];
+		// Add filename with custom resolution modifier
+		$new_src_customized .= '/' . $new_src_filename . $resolution . '.' . $new_src_pathinfo[ 'extension' ];
+		// Add custom query params.
+		$new_src_customized .= ! empty( $src_block_query_params ) ? '?' . $src_block_query_params : '';
+
+		// Replace the src image by keeping all image customizations.
+		$block_html_updated = str_replace( $src_block, $new_src_customized, $block_html_updated );
+
+		// Replace string's class name.
+		$block_html_updated = str_replace( sprintf( 'class="wp-image-%d"', $id_block ), sprintf( 'class="wp-image-%d"', $new_id ), $block_html_updated );
+
+		return $block_html_updated;
+	}
+
+	/**
+	 * Image Blocks can use {FILE_NAME}-1024x439.{EXTENSION} resolution modifiers. This gets and returns such a modifier, if used.
+	 *
+	 * @param string $src An image `src` which possibly contains a resolution modifier in its filename.
+	 * @param int    $id  This $src image's Attachment ID.
+	 *
+	 * @return string The resolution filename modifier, e.g. '-1024x439', or empty if not used.
+	 */
+	public function get_image_custom_resolution_modifier( $src, $id ) {
+		// Get blocks current custom image resolution in filename -- e.g. `{FILENAME}-1024x439.{EXTENSION}`.
+		$src_pathinfo = pathinfo( $src );
+		$src_filename = str_replace( $src_pathinfo[ 'extension' ], '', $src_pathinfo[ 'filename' ] );
+
+		// Compare the current `src` with the Attachment's original (unmodified) src.
+		$src_original = $this->wp_get_attachment_url( $id );
+		$src_original_pathinfo = pathinfo( $src_original );
+		$src_original_filename = str_replace( $src_original_pathinfo[ 'extension' ], '', $src_original_pathinfo[ 'filename' ] );
+
+		$resolution = str_replace( $src_original_filename, '', $src_filename );
+
+		return $resolution;
 	}
 
 	/**

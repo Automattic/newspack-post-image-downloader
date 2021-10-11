@@ -194,24 +194,24 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Checks that the `change_image_blocks_image` updates the Image Block's ID and src while keeping custom resolution in filename
-	 * and the query params.
+	 * Checks that the `image_block_update_image` updates the Image Block's ID, img class and src while keeping custom resolution
+	 * in filename and the query params.
 	 *
-	 * @covers \NewspackPostImageDownloader\Downloader::change_image_blocks_image
+	 * @covers \NewspackPostImageDownloader\Downloader::image_block_update_image
 	 *
 	 * @dataProvider providerImageBlockSingleWithId
 	 */
-	public function test_change_image_in_image_block_should_update_id_and_change_src_with_customizations( $block_HTML, $id, $src_original ) {
+	public function test_image_block_update_image_should_update_attachment_id_class_and_src( $block_HTML, $id, $src_original ) {
 		$downloader_partial_mock = $this->create_downloader_partial_mock_with_wp_get_attachment_url_method( $id, $src_original );
 		$new_id = 123;
 		$new_src = 'https://menu-live.test/wp-content/uploads/2021/10/WP-art-1.png';
 		$block_HTML_expected = <<<BLOCK
 <!-- wp:image {"id":123,"sizeSlug":"large","linkDestination":"none"} -->
-<figure class="wp-block-image size-large"><img src="https://menu-live.test/wp-content/uploads/2021/10/WP-art-1-1024x439.png?query=param" alt="" class="wp-image-15"/></figure>
+<figure class="wp-block-image size-large"><img src="https://menu-live.test/wp-content/uploads/2021/10/WP-art-1-1024x439.png?query=param" alt="" class="wp-image-123"/></figure>
 <!-- /wp:image -->
 BLOCK;
 
-		$block_HTML_actual = $downloader_partial_mock->change_image_blocks_image( $block_HTML, $new_id, $new_src );
+		$block_HTML_actual = $downloader_partial_mock->image_block_update_image( $block_HTML, $new_id, $new_src );
 
 		$this->assertSame( $block_HTML_expected, $block_HTML_actual );
 	}
@@ -340,7 +340,7 @@ BLOCK;
 	}
 
 	/**
-	 * DataProvider for change_image_blocks_image.
+	 * DataProvider for image_block_update_image.
 	 *
 	 * @return array[]
 	 */
