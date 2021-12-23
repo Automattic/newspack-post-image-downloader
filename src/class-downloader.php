@@ -1039,7 +1039,7 @@ class Downloader {
 		// Replace the src image by keeping all image customizations.
 		$block_html_updated = str_replace( $src_block, $new_src_customized, $block_html_updated );
 
-		// Replace string's class name.
+		// Replace ID in class name.
 		$block_html_updated = str_replace( sprintf( 'class="wp-image-%d"', $id_block ), sprintf( 'class="wp-image-%d"', $new_id ), $block_html_updated );
 
 		return $block_html_updated;
