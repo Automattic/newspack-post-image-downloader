@@ -7,6 +7,7 @@
 
 namespace NewspackPostImageDownloaderTest;
 
+use NewspackPostImageDownloader\WpBlockManipulator;
 use WP_UnitTestCase;
 use NewspackPostImageDownloader\Downloader;
 use RuntimeException;
@@ -25,12 +26,20 @@ class Test_Downloader extends WP_UnitTestCase {
 	private $downloader;
 
 	/**
+	 * WpBlockManipulator.
+	 *
+	 * @var WpBlockManipulator
+	 */
+	private $block_manipulator;
+
+	/**
 	 * Override setUp.
 	 *
 	 * @throws RuntimeException In case a temp dir could not have been created.
 	 */
 	public function setUp() {
-		$this->downloader = new Downloader();
+		$this->block_manipulator = new WpBlockManipulator();
+		$this->downloader = new Downloader( $this->block_manipulator );
 	}
 
 	/**
@@ -185,6 +194,29 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Checks that the `image_block_update_image` updates the Image Block's ID, img class and src while keeping custom resolution
+	 * in filename and the query params.
+	 *
+	 * @covers \NewspackPostImageDownloader\Downloader::image_block_update_image
+	 *
+	 * @dataProvider providerImageBlockSingleWithId
+	 */
+	public function test_image_block_update_image_should_update_attachment_id_class_and_src( $block_HTML, $id, $src_original ) {
+		$downloader_partial_mock = $this->create_downloader_partial_mock_with_wp_get_attachment_url_method( $id, $src_original );
+		$new_id = 123;
+		$new_src = 'https://menu-live.test/wp-content/uploads/2021/10/WP-art-1.png';
+		$block_HTML_expected = <<<BLOCK
+<!-- wp:image {"id":123,"sizeSlug":"large","linkDestination":"none"} -->
+<figure class="wp-block-image size-large"><img src="https://menu-live.test/wp-content/uploads/2021/10/WP-art-1-1024x439.png?query=param" alt="" class="wp-image-123"/></figure>
+<!-- /wp:image -->
+BLOCK;
+
+		$block_HTML_actual = $downloader_partial_mock->image_block_update_image( $block_HTML, $new_id, $new_src );
+
+		$this->assertSame( $block_HTML_expected, $block_HTML_actual );
+	}
+
+	/**
 	 * Creates a partial mock of the Downloader class, and mocks the `file_exists` method with expected input argument and response.
 	 * In case of a different input argument, mock will return null.
 	 *
@@ -195,6 +227,7 @@ class Test_Downloader extends WP_UnitTestCase {
 	 */
 	private function create_downloader_partial_mock_with_file_exists_method( $local_file, $response ) {
 		$partial_mock = $this->getMockBuilder( Downloader::class )
+							 ->setConstructorArgs( [ $this->block_manipulator ] )
 							 ->setMethods( array( 'file_exists' ) )
 							 ->getMock();
 
@@ -204,6 +237,34 @@ class Test_Downloader extends WP_UnitTestCase {
 						$this->returnCallback(
 							function( $arg ) use ( $local_file, $response ) {
 								return ( $local_file === $arg ) ? $response : null;
+							}
+						)
+					);
+
+		return $partial_mock;
+	}
+
+	/**
+	 * Creates a partial mock of the Downloader class, and mocks the `wp_get_attachment_url` method.
+	 * In case of a different input argument, mock will return null.
+	 *
+	 * @param string $attachment_id Input argument for the `file_exists` method.
+	 * @param bool   $response      Expected result in case of this input argument.
+	 *
+	 * @return MockObject Partial mock.
+	 */
+	private function create_downloader_partial_mock_with_wp_get_attachment_url_method( $attachment_id, $response ) {
+		$partial_mock = $this->getMockBuilder( Downloader::class )
+							 ->setConstructorArgs( [ $this->block_manipulator ] )
+							 ->setMethods( array( 'wp_get_attachment_url' ) )
+							 ->getMock();
+
+		$partial_mock->expects( $this->any() )
+					 ->method( 'wp_get_attachment_url' )
+					->will(
+						$this->returnCallback(
+							function( $arg ) use ( $attachment_id, $response ) {
+								return ( $attachment_id === $arg ) ? $response : null;
 							}
 						)
 					);
@@ -276,5 +337,23 @@ class Test_Downloader extends WP_UnitTestCase {
 				true,
 			),
 		);
+	}
+
+	/**
+	 * DataProvider for image_block_update_image.
+	 *
+	 * @return array[]
+	 */
+	public function providerImageBlockSingleWithId() {
+		$block_HTML = <<<BLOCK
+<!-- wp:image {"id":15,"sizeSlug":"large","linkDestination":"none"} -->
+<figure class="wp-block-image size-large"><img src="https://menu-live.test/wp-content/uploads/2021/10/WP-art-111111-1024x439.png?query=param" alt="" class="wp-image-15"/></figure>
+<!-- /wp:image -->
+BLOCK;
+		$src_clean = 'https://menu-live.test/wp-content/uploads/2021/10/WP-art-111111.png';
+
+		return [
+			[ $block_HTML, 15, $src_clean, ]
+		];
 	}
 }
