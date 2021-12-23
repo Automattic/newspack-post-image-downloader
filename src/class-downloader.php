@@ -39,22 +39,28 @@ class Downloader {
 	const EXCEPTION_CODE_IMPORT_FAILED            = 102;
 
 	/**
+	 * Block manipulator.
+	 *
 	 * @var WpBlockManipulator WpBlockManipulator object.
 	 */
 	private $block_manipulator;
 
 	/**
-	 * @var Crawler Symfony Dom Crawler.
+	 * Dom Crawler.
+	 *
+	 * @var Crawler $dom_crawler Symfony Dom Crawler.
 	 */
 	private $dom_crawler;
 
 	/**
+
 	 * Downloader constructor.
 	 *
-	 * @param $block_manipulator
+	 * @param WpBlockManipulator $block_manipulator Block manipulator.
+	 * @param Crawler            $dom_crawler       DOM crawler.
 	 */
 	public function __construct( $block_manipulator = null, $dom_crawler = null ) {
-		$this->dom_crawler = $dom_crawler ?? new Crawler();
+		$this->dom_crawler       = $dom_crawler ?? new Crawler();
 		$this->block_manipulator = $block_manipulator ?? new WpBlockManipulator();
 	}
 
@@ -110,7 +116,6 @@ class Downloader {
 						'repeating'   => false,
 					),
 				),
-
 			)
 		);
 		WP_CLI::add_command(
@@ -218,7 +223,6 @@ class Downloader {
 						'repeating'   => false,
 					),
 				),
-
 			)
 		);
 	}
@@ -263,17 +267,17 @@ class Downloader {
 				$parsed = wp_parse_url( $img_src );
 				if ( false === $parsed ) {
 					continue;
-				} else if ( isset( $parsed['host'] ) ) {
+				} elseif ( isset( $parsed['host'] ) ) {
 					if ( in_array( $post->ID, $img_hostnames[ $parsed['host'] ] ) ) {
 						continue;
 					}
 					$img_hostnames[ $parsed['host'] ][] = $post->ID;
 				} else {
-					if ( in_array( $post->ID, $img_hostnames[ "relative URL paths" ] ) ) {
+					if ( in_array( $post->ID, $img_hostnames['relative URL paths'] ) ) {
 						continue;
 					}
 					// There could be different types of `src` e.g. `src="data:image/svg+xml;base64"`, so this won't be perfect.
-					$img_hostnames[ "relative URL paths" ][] = $post->ID;
+					$img_hostnames['relative URL paths'][] = $post->ID;
 				}
 			}
 		}
@@ -463,9 +467,9 @@ class Downloader {
 	 * @param array $assoc_args CLI associative arguments.
 	 */
 	public function cmd_dedupe_images( $args, $assoc_args ) {
-		$dry_run           = isset( $assoc_args['dry-run'] ) ? true : false;
-		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
-		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish', 'draft' );
+		$dry_run       = isset( $assoc_args['dry-run'] ) ? true : false;
+		$post_types    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
+		$post_statuses = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish', 'draft' );
 
 		global $wpdb;
 		$time_start = microtime( true );
@@ -480,9 +484,9 @@ class Downloader {
 
 
 		WP_CLI::log( sprintf( '👉 Scanning total %d attachment files for duplicates...', count( $attachments ) ) );
-		$md5s_ids = [];
+		$md5s_ids = array();
 		$progress = \WP_CLI\Utils\make_progress_bar( 'Scanning...', count( $attachments ) );
-		foreach( $attachments as $attachment ) {
+		foreach ( $attachments as $attachment ) {
 			$file = get_attached_file( $attachment->ID );
 			if ( ! $this->file_exists( $file ) ) {
 				$log = sprintf( '❗ Att ID %d file not found %s', $attachment->ID, $file );
@@ -497,19 +501,19 @@ class Downloader {
 
 
 		// Get info about dupes.
-		$dupes = [];
+		$dupes       = array();
 		$dupes_count = 0;
 		foreach ( $md5s_ids as $key_ids => $ids ) {
 			if ( count( $ids ) > 1 ) {
-				$this_key_dupes = count( $dupes );
+				$this_key_dupes     = count( $dupes );
 				$log_group_of_dupes = 'These attachments are duplicates:';
 				foreach ( $ids as $key_id => $block_id ) {
-					$src = wp_get_attachment_url( $block_id );
-					$dupes[ $this_key_dupes ][] = [
-						'ID' => $block_id,
+					$src                        = wp_get_attachment_url( $block_id );
+					$dupes[ $this_key_dupes ][] = array(
+						'ID'  => $block_id,
 						'src' => $src,
-					];
-					$log_group_of_dupes .= sprintf( "\n→ %d %s", $block_id, $src );
+					);
+					$log_group_of_dupes        .= sprintf( "\n→ %d %s", $block_id, $src );
 					$dupes_count++;
 				}
 
@@ -536,7 +540,7 @@ class Downloader {
 		WP_CLI::log( '👉 Fixing dupes in content -- the first dupe is kept, other dupes replaced by it...' );
 		$progress = \WP_CLI\Utils\make_progress_bar( 'Fixing dupes...', count( $posts ) );
 		foreach ( $posts as $key_post => $post ) {
-			$log_post = sprintf( 'Post ID %d:', $post->ID );
+			$log_post             = sprintf( 'Post ID %d:', $post->ID );
 			$post_content_updated = $post->post_content;
 			$post_featured_img_id = get_post_meta( $post->ID, '_thumbnail_id', true );
 
@@ -544,13 +548,21 @@ class Downloader {
 			foreach ( $dupes as $dupe_group ) {
 				foreach ( $dupe_group as $key_dupe => $dupe ) {
 					if ( 0 == $key_dupe ) {
-						$first_id  = $dupe [ 'ID' ];
-						$first_src = $dupe[ 'src' ];
+						$first_id  = $dupe['ID'];
+						$first_src = $dupe['src'];
 						continue;
 					}
 
-					$replaced_src = $dupe[ 'src' ];
-					$replaced_id  = $dupe[ 'ID' ];
+					$replaced_src = $dupe['src'];
+					$replaced_id  = $dupe['ID'];
+
+					// Get intermediate sizes `src`s.
+					// phpcs:ignore
+					$replaced_sizes      = get_intermediate_image_sizes( $replaced_id );
+					$replaced_sizes_srcs = array();
+					foreach ( $replaced_sizes as $replaced_size ) {
+						$replaced_sizes_srcs[] = wp_get_attachment_image_src( $replaced_id, $replaced_size )[0];
+					}
 					$replacement_done = false;
 
 					// Update the Post's Featured Image, if this $replaced_id dupe was used.
@@ -565,18 +577,18 @@ class Downloader {
 					$blocks_matches = $this->block_manipulator->match_wp_blocks( 'wp:image', $post_content_updated );
 					foreach ( $blocks_matches[0] as $block_match ) {
 						$block_html = $block_match[0];
-						$block_id = $this->block_manipulator->get_block_attribute_value( $block_html, 'id' ) ?? null;
+						$block_id   = $this->block_manipulator->get_block_attribute_value( $block_html, 'id' ) ?? null;
 						if ( $replaced_id != $block_id ) {
 							continue;
 						}
-
-						$block_html_updated = $this->image_block_update_image( $block_html, $first_id, $first_src );
+						// TODO check
+						$block_html_updated   = $this->image_block_update_image( $block_html, $first_id, $first_src );
 						$post_content_updated = str_replace( $block_html, $block_html_updated, $post_content_updated );
-						$replacement_done = true;
+						$replacement_done     = true;
 					}
 
 					// Also replace plain `src`s in non-block content.
-					$replacement_done = $replacement_done || strpos( $post_content_updated, $replaced_src );
+					$replacement_done     = $replacement_done || ( false !== strpos( $post_content_updated, $replaced_src ) );
 					$post_content_updated = str_replace( $replaced_src, $first_src, $post_content_updated );
 
 					// Log the `src` update.
@@ -591,8 +603,8 @@ class Downloader {
 				if ( ! $dry_run ) {
 					$wpdb->update(
 						$wpdb->prefix . 'posts',
-						[ 'post_content' => $post_content_updated ],
-						[ 'ID' => $post->ID ]
+						array( 'post_content' => $post_content_updated ),
+						array( 'ID' => $post->ID )
 					);
 				}
 
@@ -607,8 +619,8 @@ class Downloader {
 
 
 		WP_CLI::log( '👉 Now deleting unused duplicate files...' );
-		$progress = \WP_CLI\Utils\make_progress_bar( 'Deleting dupes...', $dupes_count );
-		$deleted_ids = [];
+		$progress    = \WP_CLI\Utils\make_progress_bar( 'Deleting dupes...', $dupes_count );
+		$deleted_ids = array();
 		foreach ( $dupes as $dupe_group ) {
 			foreach ( $dupe_group as $key_dupe => $dupe ) {
 				// The first dupe was used, others can be deleted.
@@ -616,7 +628,7 @@ class Downloader {
 					continue;
 				}
 
-				$replaced_id = $dupe[ 'ID' ];
+				$replaced_id = $dupe['ID'];
 				if ( ! $dry_run ) {
 					wp_delete_attachment( $replaced_id );
 				}
@@ -625,7 +637,7 @@ class Downloader {
 			$progress->tick();
 		}
 		$progress->finish();
-		$log = sprintf( "Total %d IDs deleted: %s", count( $deleted_ids ), implode( ',', $deleted_ids ) );
+		$log = sprintf( 'Total %d IDs deleted: %s', count( $deleted_ids ), implode( ',', $deleted_ids ) );
 		$this->log( self::LOG_FILE_DEDUPLICATION, $log );
 		WP_CLI::success( $log );
 
@@ -695,9 +707,9 @@ class Downloader {
 	 *
 	 * @param string $src                           Img `src` URI.
 	 * @param string $folder_local_images           Path to local folder where image files can be found at.
-	 * @param string $default_image_host_and_schema Default schema+host used to download relative referenced URLs,
-	 *                                              e.g. if you provide the value 'https://dl_host`, it will attempt to download
-	 *                                              a relative `src="/path/img.jpg"` from 'https://dl_host/path/img.jpg'
+	 * @param string $default_image_host_and_schema Default schema+host used to download relative referenced URLs, e.g. if you
+	 *                                              provide the value 'https://dl_host`, it will attempt to download a relative
+	 *                                              `src="/path/img.jpg"` from 'https://dl_host/path/img.jpg'.
 	 *
 	 * @return string Either a full path to a local image file, or a fully qualified HTTP path to download the image from.
 	 *
@@ -738,13 +750,13 @@ class Downloader {
 		if ( $is_src_absolute ) {
 			// A good old absolute URL.
 			$img_import_path = $src;
-		} else if ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
+		} elseif ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
 			// Use the `--default-image-host-and-schema` to try and download a relative URL.
 			throw ( new RuntimeException(
 				sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', $src ),
 				self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED
 			) );
-		} else if ( $is_src_relative_ref && $default_image_host_and_schema ) {
+		} elseif ( $is_src_relative_ref && $default_image_host_and_schema ) {
 			// A relative reference from root -- turning it to a fully qualified (absolute) one.
 			$img_import_path = $default_image_host_and_schema
 				. ( ( 0 !== strpos( strtolower( $src ), '/' ) ) ? '/' : '' )
@@ -924,9 +936,9 @@ class Downloader {
 
 		if ( null !== $post_ids ) {
 			$ids_placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
-			$query .= " AND ID IN ({$ids_placeholders}) ";
-			$prepare_args = array_merge( $prepare_args, $post_ids );
-		} else if ( null !== $post_id_from && null !== $post_id_to ) {
+			$query           .= " AND ID IN ({$ids_placeholders}) ";
+			$prepare_args     = array_merge( $prepare_args, $post_ids );
+		} elseif ( null !== $post_id_from && null !== $post_id_to ) {
 			$query .= ' AND ID BETWEEN %d AND %d ';
 			array_push( $prepare_args, $post_id_from, $post_id_to );
 		}
@@ -994,9 +1006,9 @@ class Downloader {
 	 */
 	public function image_block_update_image( $block_html, $new_id, $new_src ) {
 		$block_html_updated = $block_html;
-		$id_block = $this->block_manipulator->get_block_attribute_value( $block_html_updated, 'id' );
-		$srcs_block = $this->get_all_img_srcs( $block_html );
-		// TODO Improve to using $this->dom_crawler;
+		$id_block           = $this->block_manipulator->get_block_attribute_value( $block_html_updated, 'id' );
+		$srcs_block         = $this->get_all_img_srcs( $block_html );
+		// TODO Improve to using $this->dom_crawler.
 		$src_block = $srcs_block[0] ?? null;
 		if ( ! $src_block ) {
 			return $block_html;
@@ -1006,21 +1018,21 @@ class Downloader {
 		$block_html_updated = $this->block_manipulator->update_block_attribute( $block_html_updated, 'id', (int) $new_id );
 
 		// Get block `src`'s query params.
-		$src_block_pathinfo = pathinfo( $src_block );
-		$pos_questionmark = strpos( $src_block_pathinfo[ 'extension' ], '?' );
-		$src_block_query_params = $pos_questionmark ? substr( $src_block_pathinfo[ 'extension' ], $pos_questionmark + 1 ) : '';
+		$src_block_pathinfo     = pathinfo( $src_block );
+		$pos_questionmark       = strpos( $src_block_pathinfo['extension'], '?' );
+		$src_block_query_params = $pos_questionmark ? substr( $src_block_pathinfo['extension'], $pos_questionmark + 1 ) : '';
 
 		// Get block's current custom image resolution in filename -- e.g. `{FILENAME}-1024x439.{EXTENSION}`.
 		$resolution = $this->get_image_custom_resolution_modifier( $src_block, $id_block );
 
 		// New src with custom resolution and custom query params.
 		$new_src_pathinfo = pathinfo( $new_src );
-		$new_src_filename = str_replace( $new_src_pathinfo[ 'extension' ], '', $new_src_pathinfo[ 'filename' ] );
+		$new_src_filename = str_replace( $new_src_pathinfo['extension'], '', $new_src_pathinfo['filename'] );
 
 		// Let's put together the new `src`; start by 'dirname'.
-		$new_src_customized = $new_src_pathinfo[ 'dirname' ];
-		// Add filename with custom resolution modifier
-		$new_src_customized .= '/' . $new_src_filename . $resolution . '.' . $new_src_pathinfo[ 'extension' ];
+		$new_src_customized = $new_src_pathinfo['dirname'];
+		// Add filename with custom resolution modifier.
+		$new_src_customized .= '/' . $new_src_filename . $resolution . '.' . $new_src_pathinfo['extension'];
 		// Add custom query params.
 		$new_src_customized .= ! empty( $src_block_query_params ) ? '?' . $src_block_query_params : '';
 
@@ -1044,12 +1056,12 @@ class Downloader {
 	public function get_image_custom_resolution_modifier( $src, $id ) {
 		// Get blocks current custom image resolution in filename -- e.g. `{FILENAME}-1024x439.{EXTENSION}`.
 		$src_pathinfo = pathinfo( $src );
-		$src_filename = str_replace( $src_pathinfo[ 'extension' ], '', $src_pathinfo[ 'filename' ] );
+		$src_filename = str_replace( $src_pathinfo['extension'], '', $src_pathinfo['filename'] );
 
 		// Compare the current `src` with the Attachment's original (unmodified) src.
-		$src_original = $this->wp_get_attachment_url( $id );
+		$src_original          = $this->wp_get_attachment_url( $id );
 		$src_original_pathinfo = pathinfo( $src_original );
-		$src_original_filename = str_replace( $src_original_pathinfo[ 'extension' ], '', $src_original_pathinfo[ 'filename' ] );
+		$src_original_filename = str_replace( $src_original_pathinfo['extension'], '', $src_original_pathinfo['filename'] );
 
 		$resolution = str_replace( $src_original_filename, '', $src_filename );
 
