@@ -1008,7 +1008,7 @@ class Downloader {
 		$block_html_updated = $block_html;
 		$id_block           = $this->block_manipulator->get_block_attribute_value( $block_html_updated, 'id' );
 		$srcs_block         = $this->get_all_img_srcs( $block_html );
-		// TODO Improve to using $this->dom_crawler.
+		// TODO Improve by using $this->dom_crawler.
 		$src_block = $srcs_block[0] ?? null;
 		if ( ! $src_block ) {
 			return $block_html;
