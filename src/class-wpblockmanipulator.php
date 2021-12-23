@@ -1,4 +1,9 @@
 <?php
+/**
+ * WP Block Manipulator.
+ *
+ * @package Newspack_Post_Image_Downloader
+ */
 
 namespace NewspackPostImageDownloader;
 
@@ -37,7 +42,7 @@ class WpBlockManipulator {
 	 */
 	public function match_wp_blocks( $block_name, $content ) {
 
-		$pattern = sprintf( self::BLOCK_PATTERN, $block_name );
+		$pattern               = sprintf( self::BLOCK_PATTERN, $block_name );
 		$preg_match_all_result = preg_match_all( $pattern, $content, $matches, PREG_OFFSET_CAPTURE );
 
 		return ( false === $preg_match_all_result || 0 === $preg_match_all_result ) ? null : $matches;
@@ -55,14 +60,14 @@ class WpBlockManipulator {
 		$block_element_lines    = explode( "\n", $block_element );
 		$block_element_1st_line = $block_element_lines[0];
 
-		$pos_from_curly = strpos( $block_element_1st_line, '{' );
-		$pos_to_curly = strpos( $block_element_1st_line, '}' );
+		$pos_from_curly               = strpos( $block_element_1st_line, '{' );
+		$pos_to_curly                 = strpos( $block_element_1st_line, '}' );
 		$contains_existing_attributes = $pos_from_curly && $pos_to_curly;
 		if ( ! $contains_existing_attributes ) {
 			return null;
 		}
 
-		$json_part = substr( $block_element_1st_line, $pos_from_curly, $pos_to_curly - $pos_from_curly + 1 );
+		$json_part  = substr( $block_element_1st_line, $pos_from_curly, $pos_to_curly - $pos_from_curly + 1 );
 		$attributes = \json_decode( $json_part, true );
 
 		return $attributes[ $attribute ] ?? null;
@@ -81,20 +86,20 @@ class WpBlockManipulator {
 		$block_element_lines    = explode( "\n", $block_element );
 		$block_element_1st_line = $block_element_lines[0];
 
-		$pos_from_curly = strpos( $block_element_1st_line, '{' );
-		$pos_to_curly = strpos( $block_element_1st_line, '}' );
+		$pos_from_curly               = strpos( $block_element_1st_line, '{' );
+		$pos_to_curly                 = strpos( $block_element_1st_line, '}' );
 		$contains_existing_attributes = $pos_from_curly && $pos_to_curly;
 		// Update attributes section if already exists.
 		if ( $contains_existing_attributes ) {
-			$json_part = substr( $block_element_1st_line, $pos_from_curly, $pos_to_curly - $pos_from_curly + 1 );
-			$attributes = \json_decode( $json_part, true );
-			$attributes[ $attribute ] = $new_value;
-			$json_part_updated = json_encode( $attributes );
+			$json_part                      = substr( $block_element_1st_line, $pos_from_curly, $pos_to_curly - $pos_from_curly + 1 );
+			$attributes                     = \json_decode( $json_part, true );
+			$attributes[ $attribute ]       = $new_value;
+			$json_part_updated              = json_encode( $attributes );
 			$block_element_1st_line_patched = str_replace( $json_part, $json_part_updated, $block_element_1st_line );
 		} else {
 			// Insert the whole attributes section.
-			$json_part = json_encode( [ $attribute => $new_value ] );
-			$pos_closing = strpos( $block_element_1st_line, '-->' );
+			$json_part                      = json_encode( array( $attribute => $new_value ) );
+			$pos_closing                    = strpos( $block_element_1st_line, '-->' );
 			$block_element_1st_line_patched = substr( $block_element_1st_line, 0, $pos_closing ) . $json_part . ' -->';
 		}
 
