@@ -1,7 +1,6 @@
 {
   "name": "automattic/newspack-post-image-downloader",
   "description": "Downloads all Post images hosted externally, or imports them from local files.",
-  "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "autoload": {
     "classmap": [
