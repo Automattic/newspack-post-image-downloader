@@ -192,38 +192,9 @@ class Downloader {
 			WP_CLI::error( '❗ Both post ID ranges are required.' );
 		}
 
-		$time_start = microtime( true );
-		$posts      = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
-		if ( empty( $posts ) ) {
-			WP_CLI::warning( 'No Posts found... 🤔' );
-			exit;
-		}
-
-		WP_CLI::line( sprintf( 'Checking image hosts in %d posts...', count( $posts ) ) );
-		$img_hostnames = array();
-		foreach ( $posts as $i => $post ) {
-			$img_srcs = $this->get_all_img_srcs( $post->post_content );
-			if ( empty( $img_srcs ) ) {
-				continue;
-			}
-			foreach ( $img_srcs as $img_src ) {
-				$parsed = wp_parse_url( $img_src );
-				if ( false === $parsed ) {
-					continue;
-				} else if ( isset( $parsed['host'] ) ) {
-					if ( in_array( $post->ID, $img_hostnames[ $parsed['host'] ] ) ) {
-						continue;
-					}
-					$img_hostnames[ $parsed['host'] ][] = $post->ID;
-				} else {
-					if ( in_array( $post->ID, $img_hostnames[ "relative URL paths" ] ) ) {
-						continue;
-					}
-					// There could be different types of `src` e.g. `src="data:image/svg+xml;base64"`, so this won't be perfect.
-					$img_hostnames[ "relative URL paths" ][] = $post->ID;
-				}
-			}
-		}
+		$time_start    = microtime( true );
+		$posts         = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		$img_hostnames = $this->get_all_image_hostnames_from_posts( $posts );
 
 		// Tada!
 		WP_CLI::success( sprintf( '👉 Found %d total image hosts%s', count( $img_hostnames ), ( count( $img_hostnames ) > 0 ? ':' : '.' ) ) );
@@ -240,6 +211,52 @@ class Downloader {
 		}
 
 		WP_CLI::line( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
+	}
+
+	/**
+	 * Searches for all image URLs in post contents.
+	 *
+	 * @param array $posts Array of post records, contains subarrays with keys 'ID' and 'post_content'.
+	 *
+	 * @return array An array containing image URL hostnames as keys and post IDs as values, plus a special key
+	 *               "relative URL paths" containing relative URLs and post IDs as values.
+	 */
+	public function get_all_image_hostnames_from_posts( $posts ) {
+
+		if ( empty( $posts ) ) {
+			return;
+		}
+
+		$img_hostnames = [
+			"relative URL paths" => []
+		];
+
+		WP_CLI::line( sprintf( 'Checking image hosts in %d posts...', count( $posts ) ) );
+		foreach ( $posts as $i => $post ) {
+			$img_srcs = $this->get_all_img_srcs( $post['post_content'] );
+			if ( empty( $img_srcs ) ) {
+				continue;
+			}
+			foreach ( $img_srcs as $img_src ) {
+				$parsed = wp_parse_url( $img_src );
+				if ( false === $parsed ) {
+					continue;
+				} else if ( isset( $parsed['host'] ) ) {
+					if ( isset( $img_hostnames[ $parsed['host'] ] ) && in_array( $post['ID'], $img_hostnames[ $parsed['host'] ] ) ) {
+						continue;
+					}
+					$img_hostnames[ $parsed['host'] ][] = $post['ID'];
+				} else {
+					if ( in_array( $post['ID'], $img_hostnames[ "relative URL paths" ] ) ) {
+						continue;
+					}
+					// There could be different types of `src` e.g. `src="data:image/svg+xml;base64"`, so this won't be perfect.
+					$img_hostnames[ "relative URL paths" ][] = $post['ID'];
+				}
+			}
+		}
+
+ 		return $img_hostnames;
 	}
 
 	/**
@@ -299,14 +316,14 @@ class Downloader {
 
 		foreach ( $posts as $i => $post ) {
 			// Extract attributes from all the `<img>`s.
-			$img_data = ( new Crawler( $post->post_content ) )->filterXpath( '//img' )->extract( array( 'src', 'title', 'alt' ) );
+			$img_data = ( new Crawler( $post['post_content'] ) )->filterXpath( '//img' )->extract( array( 'src', 'title', 'alt' ) );
 
-			WP_CLI::line( sprintf( '👉 (%d/%d) ID %d, found %d images...', $i + 1, count( $posts ), $post->ID, count( $img_data ) ) );
+			WP_CLI::line( sprintf( '👉 (%d/%d) ID %d, found %d images...', $i + 1, count( $posts ), $post['ID'], count( $img_data ) ) );
 			if ( empty( $img_data ) ) {
 				continue;
 			}
 
-			$post_content_updated = $post->post_content;
+			$post_content_updated = $post['post_content'];
 			foreach ( $img_data as $img_datum ) {
 				$src   = trim( $img_datum[0] );
 				$title = $img_datum[1];
@@ -338,10 +355,10 @@ class Downloader {
 				} catch ( \Exception $e ) {
 					if ( self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED == $e->getCode() ) {
 						WP_CLI::warning( sprintf( '❗ Default download host+schema missing: %s', $e->getMessage() ) );
-						$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post->ID, $src ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src ) );
 					} else {
 						WP_CLI::warning( sprintf( '❗ Unknown error when getting image path: %s', $e->getMessage() ) );
-						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post->ID, $src ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src ) );
 					}
 
 					continue;
@@ -356,18 +373,18 @@ class Downloader {
 				WP_CLI::line( sprintf( '✓ %s %s ...', $this->file_exists( $img_import_path ) ? 'importing file' : 'downloading', $img_import_path ) );
 				try {
 					$attachment_id = ! $dry_run
-						? $this->import_external_file( $img_import_path, $title, $caption = null, $description = null, $alt, $post->ID )
+						? $this->import_external_file( $img_import_path, $title, $caption = null, $description = null, $alt, $post['ID'] )
 						: null;
 				} catch ( \Exception $e ) {
 					if ( self::EXCEPTION_CODE_DOWNLOAD_FAILED == $e->getCode() ) {
 						WP_CLI::warning( sprintf( '❗ Error while downloading image: %s', $e->getMessage() ) );
-						$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $src, $e->getMessage() ) );
 					} elseif ( self::EXCEPTION_CODE_IMPORT_FAILED == $e->getCode() ) {
 						WP_CLI::warning( sprintf( '❗ Error during import to Media Library: %s', $e->getMessage() ) );
-						$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $src, $e->getMessage() ) );
 					} else {
 						WP_CLI::warning( sprintf( '❗ Unknown error: %s', $e->getMessage() ) );
-						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post->ID, $src, $e->getMessage() ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $src, $e->getMessage() ) );
 					}
 
 					continue;
@@ -380,15 +397,15 @@ class Downloader {
 				$post_content_updated = str_replace( array( esc_attr( $src ), $src ), $img_uri_new, $post_content_updated );
 				$this->log(
 					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-					sprintf( 'Post ID %d ; original src %s ; new src %s ; imported attachment ID %d', $post->ID, $src, $img_uri_new, $attachment_id )
+					sprintf( 'Post ID %d ; original src %s ; new src %s ; imported attachment ID %d', $post['ID'], $src, $img_uri_new, $attachment_id )
 				);
 			}
 
 			// Update the Post content.
-			if ( ! $dry_run && $post_content_updated != $post->post_content ) {
-				$wpdb->update( $wpdb->prefix . 'posts', array( 'post_content' => $post_content_updated ), array( 'ID' => $post->ID ) );
+			if ( ! $dry_run && $post_content_updated != $post['post_content'] ) {
+				$wpdb->update( $wpdb->prefix . 'posts', array( 'post_content' => $post_content_updated ), array( 'ID' => $post['ID'] ) );
 				WP_CLI::line( '✓ Post content updated 👍' );
-			} elseif ( $dry_run && $post_content_updated != $post->post_content ) {
+			} elseif ( $dry_run && $post_content_updated != $post['post_content'] ) {
 				WP_CLI::line( '✓ Post content updated 👍' );
 			}
 		}
@@ -663,9 +680,9 @@ class Downloader {
 	 * @param array|null $post_types    Post types.
 	 * @param array|null $post_statuses Post statuses.
 	 *
-	 * @return object|null
+	 * @return array|null An array of records from DB, with subarrays with keys 'ID' and 'post_content'.
 	 */
-	private function get_posts_ids_and_contents(
+	public function get_posts_ids_and_contents(
 		$post_ids = null,
 		$post_id_from = null,
 		$post_id_to = null,
@@ -697,7 +714,7 @@ class Downloader {
 		$query = $wpdb->prepare( $query, $prepare_args );
 
 		// phpcs:ignore -- statement prepared above.
-		return $wpdb->get_results( $query );
+		return $wpdb->get_results( $query, ARRAY_A );
 	}
 
 	/**
@@ -721,6 +738,13 @@ class Downloader {
 
 		// Unique values and updated keys.
 		$img_srcs = array_values( array_unique( $img_srcs ) );
+
+		// Remove empty, if it was attributed from an empty node.
+		$key_empty = array_search( '', $img_srcs );
+		if ( false !== $key_empty ) {
+			unset( $img_srcs[$key_empty] );
+			$img_srcs = array_values( $img_srcs );
+		}
 
 		return $img_srcs;
 	}
