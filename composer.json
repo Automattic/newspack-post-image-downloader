@@ -21,17 +21,48 @@
     "dealerdirect/phpcodesniffer-composer-installer": "*",
     "phpcompatibility/phpcompatibility-wp": "*"
   },
+  "extra": {
+    "hooks": {
+      "pre-commit": "./vendor/xwp/wp-dev-lib/scripts/pre-commit"
+    }
+  },
+  "archive": {
+    "exclude": [
+      "release/*",
+      "bin/*",
+      "tests/*",
+      "phpunit*",
+      ".phpunit*",
+      "phpcs*",
+      ".phpcs*",
+      ".git*",
+      ".git/*",
+      ".distignore",
+      ".DS_Store",
+      ".env*",
+      ".idea",
+      "*.log*",
+      "release",
+      "composer.json",
+      "composer.lock",
+      "composer.lock_old"
+    ]
+  },
   "scripts": {
     "post-install-cmd": [
       "vendor/bin/cghooks add --no-lock"
     ],
     "post-update-cmd": [
       "vendor/bin/cghooks update"
+    ],
+    "release": [
+      "composer install --no-dev --optimize-autoloader",
+      "composer archive --format=zip --dir=release --file=newspack-post-image-downloader"
     ]
   },
-  "extra": {
-    "hooks": {
-      "pre-commit": "./vendor/xwp/wp-dev-lib/scripts/pre-commit"
+  "config": {
+    "allow-plugins": {
+      "composer/installers": true
     }
   }
 }

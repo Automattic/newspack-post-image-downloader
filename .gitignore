@@ -12,3 +12,4 @@
 *.log
 
 /vendor/
+release
