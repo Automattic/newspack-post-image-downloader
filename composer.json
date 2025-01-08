@@ -16,8 +16,8 @@
   },
   "require-dev": {
     "xwp/wp-dev-lib": "^1.5",
-    "automattic/vipwpcs": "^2.0.0",
-    "wp-coding-standards/wpcs": "*",
+    "automattic/vipwpcs": "^3.0",
+    "wp-coding-standards/wpcs": "^3.0",
     "dealerdirect/phpcodesniffer-composer-installer": "*",
     "phpcompatibility/phpcompatibility-wp": "*"
   },
@@ -62,7 +62,8 @@
   },
   "config": {
     "allow-plugins": {
-      "composer/installers": true
+      "composer/installers": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true
     }
   }
 }
