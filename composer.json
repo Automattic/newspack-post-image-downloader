@@ -9,7 +9,7 @@
     ]
   },
   "require": {
-    "composer/installers": "^1.6",
+    "composer/installers": "^2.0",
     "brainmaestro/composer-git-hooks": "^2.6",
     "symfony/dom-crawler": "^5.2",
     "symfony/css-selector": "^5.2"
