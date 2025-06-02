@@ -27,6 +27,7 @@ class Downloader {
 	const LOG_FILE_ERR_IMPORT_FAILED         = 'imagedownloader__err_import.log';
 	const LOG_FILE_ERR_DOWNLOADING_REFERENCE = 'imagedownloader__err_downloading_reference.log';
 	const LOG_FILE_ERR_OTHER                 = 'imagedownloader__err_other.log';
+	const LOG_FILE_URLS                      = 'imagedownloader__postids_urls.csv';
 
 	/**
 	 * Custom codes for local runtime exception handling.
@@ -87,7 +88,50 @@ class Downloader {
 						'repeating'   => false,
 					),
 				),
-
+			)
+		);
+		WP_CLI::add_command(
+			'newspack-post-image-downloader list-all-urls',
+			array( $this, 'cmd_list_all_urls' ),
+			array(
+				'shortdesc' => 'Helper command. This one generates a more comprehensive list of all URLs used on the site. It scans HTML content for any href or src attributes—covering links, scripts, images, other media types, and more — but ignores plain-text URLs. All extracted URLs are saved to a log file for a custom review.',
+				'synopsis'  => array(
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-types',
+						'description' => 'Optional CSV Post types. Defaults are `post,page`',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-statuses',
+						'description' => 'Optional CSV Post statuses. Defaults is `publish`',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-ids-csv',
+						'description' => 'Specify Posts to scan with a CSV list of Post IDs.',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-id-from',
+						'description' => 'Specify Post IDs to scan with a from-to range.',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+					array(
+						'type'        => 'assoc',
+						'name'        => 'post-id-to',
+						'description' => 'Specify Post IDs to scan with a from-to range.',
+						'optional'    => true,
+						'repeating'   => false,
+					),
+				),
 			)
 		);
 		WP_CLI::add_command(
@@ -214,6 +258,52 @@ class Downloader {
 	}
 
 	/**
+	 * Callable for `newspack-post-image-downloader list-all-urls`.
+	 * See command description in \NewspackPostImageDownloader\Downloader::register_commands.
+	 *
+	 * @param array $args        CLI arguments.
+	 * @param array $assoc_args  CLI associative arguments.
+	 */
+	public function cmd_list_all_urls( $args, $assoc_args ) {
+		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
+		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
+		$post_ids_specific = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
+		$post_id_from      = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
+		$post_id_to        = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
+
+		if ( ( $post_ids_specific && $post_id_from ) || ( $post_ids_specific && $post_id_to ) ) {
+			WP_CLI::error( '❗ Sorry, you can either specify a CSV list of Post IDs, or a range of Post IDs.' );
+		}
+		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
+			WP_CLI::error( '❗ Both post ID ranges are required.' );
+		}
+
+		$time_start = microtime( true );
+		$posts      = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		
+		WP_CLI::line( sprintf( 'Getting all URLs from %d posts...', count( $posts ) ) );
+		$urls = $this->get_all_urls_from_posts( $posts );
+
+		// Tada!
+		$log_file = $this->get_log_name( self::LOG_FILE_URLS, $post_id_from, $post_id_to );
+		if ( file_exists( $log_file ) ) {
+			unlink( $log_file );
+		}
+		WP_CLI::success( sprintf( '👉 Found %d total URLs%s', count( $urls ), ( count( $urls ) > 0 ? ' and saved them to `' . $log_file . '`' : '.' ) ) );
+		if ( count( $urls ) > 0 ) {
+			$log_file_handle = fopen( $log_file, 'w' );
+			fputcsv( $log_file_handle, [ 'post_id', 'url' ] );
+			foreach ( $urls as $post_id => $urls_post ) {
+				foreach ( $urls_post as $url ) {
+					fputcsv( $log_file_handle, [ $post_id, $url ] );
+				}
+			}
+		}
+
+		WP_CLI::line( sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
+	}
+
+	/**
 	 * Searches for all image URLs in post contents.
 	 *
 	 * @param array $posts Array of post records, contains subarrays with keys 'ID' and 'post_content'.
@@ -257,6 +347,34 @@ class Downloader {
 		}
 
  		return $img_hostnames;
+	}
+
+	/**
+	 * Searches and gets all URLs found in post content as `src` and `href` attributes, not just image URLs.
+	 *
+	 * @param array $posts Array of post records, contains subarrays with keys 'ID' and 'post_content'.
+	 *
+	 * @return array An array containing postIDs as keys, and value is a subarray of URLs found in the content.
+	 */
+	public function get_all_urls_from_posts( array $posts ): array {
+		if ( empty( $posts ) ) {
+			return [];
+		}
+
+		$urls = [];
+		foreach ( $posts as $post ) {
+			$post_id   = $post['ID'];
+			$html      = $post['post_content'];
+			
+			$urls_post = $this->get_all_urls( $html );
+			if ( empty( $urls_post ) ) {
+				continue;
+			}
+
+			$urls[ $post_id ] = $urls_post;
+		}
+
+ 		return $urls;
 	}
 
 	/**
@@ -747,6 +865,39 @@ class Downloader {
 		}
 
 		return $img_srcs;
+	}
+
+	/**
+	 * Gets all the unique and trimmed URLs in HTML from `href` and `src` attributes.
+	 *
+	 * @param string $html HTML.
+	 *
+	 * @return array An array of URLs found in the HTML.
+	 */
+	private function get_all_urls( string $html ): array {
+		$urls    = [];
+		$crawler = new Crawler( $html );
+		
+		// Extract all href attributes.
+		$crawler->filter( '[href]' )->each(function ( $node ) use ( &$urls ) {
+			$urls[] = $node->attr( 'href' );
+		});
+		
+		// Extract all src attributes.
+		$crawler->filter( '[src]' )->each( function ( $node ) use ( &$urls ) {
+			$urls[] = $node->attr( 'src' );
+		});
+
+		// Trim, unique, and remove empty (if it was attributed from an empty node).
+		$urls = array_map( 'trim', $urls );
+		$urls = array_unique( $urls );
+		$urls = array_filter( $urls, function( $url ) {
+			return ! empty( $url );
+		} );
+		// Update keys.
+		$urls = array_values( $urls );
+
+		return $urls;
 	}
 
 	/**
