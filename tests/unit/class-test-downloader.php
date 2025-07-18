@@ -11,6 +11,7 @@ use WP_UnitTestCase;
 use NewspackPostImageDownloader\Downloader;
 use RuntimeException;
 use PHPUnit\Framework\MockObject\MockObject;
+use Yoast\PHPUnitPolyfills\TestCases\TestCase;
 
 /**
  * Sample test case.
@@ -29,7 +30,7 @@ class Test_Downloader extends WP_UnitTestCase {
 	 *
 	 * @throws RuntimeException In case a temp dir could not have been created.
 	 */
-	public function setUp() {
+	protected function setUp(): void {
 		$this->downloader = new Downloader();
 	}
 
@@ -181,7 +182,7 @@ class Test_Downloader extends WP_UnitTestCase {
 	public function test_uri_host_matching( $src, $hosts, $result_expected ) {
 		$result_actual = $this->downloader->does_uri_match_host( $src, $hosts );
 
-		$this->assertSame( $result_expected, $result_expected );
+		$this->assertSame( $result_expected, $result_actual );
 	}
 
 	/**
@@ -273,7 +274,7 @@ class Test_Downloader extends WP_UnitTestCase {
 			array(
 				'https://www.host1.com/path/img.jpg',
 				array( 'www.host2.*' ),
-				true,
+				false,
 			),
 		);
 	}
