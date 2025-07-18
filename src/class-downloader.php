@@ -549,14 +549,14 @@ class Downloader {
 				// Add the "original" src (the one from post_content) to end of list.
 				$srcs_ranked[] = $src;
 
-				// Import the largest image into the Media Library (the first candidate), then just physically also download the rest of them in the same path.
+				// Import the largest image into the Media Library (the first ranked src), then just physically also download the rest of them in the same path.
 				$imported        = false;
 				$attachment_id   = null;
 				$imported_folder = null;
 				$src_local       = null;
 				foreach ( $srcs_ranked as $key_src_ranked => $src_ranked ) {
 
-					// Get the fully qualified path of the current candidate file (either from local folder, or from remote URL).
+					// Get the fully qualified path of the current ranked src file (either from local folder, or from remote URL).
 					$img_import_path = null;
 					try {
 						$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_images, $default_image_host_and_schema );
@@ -568,7 +568,7 @@ class Downloader {
 							WP_CLI::warning( sprintf( '❗ Unknown error when getting image path: %s', $e->getMessage() ) );
 							$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_ranked ) );
 						}
-						// Try the following import candidate.
+						// Try importing the next ranked src.
 						continue;
 					}
 
@@ -579,7 +579,7 @@ class Downloader {
 					$title_to_use          = empty( $title ) ? $filename_wo_extension : $title;
 					$alt_to_use            = empty( $alt ) ? $filename_wo_extension : $alt;
 
-					// Try and import the first (largest) candidate image into the Media Library.
+					// Try and import the first (largest) ranked src into the Media Library.
 					if ( ! $imported ) {
 						WP_CLI::line( sprintf( '✓ %s %s ...', $this->file_exists( $img_import_path ) ? 'importing file' : 'downloading', $img_import_path ) );
 						
@@ -614,7 +614,7 @@ class Downloader {
 							WP_CLI::line( sprintf( "[Dry Run] Importing Post ID %d ; src '%s'", $post['ID'], $src_ranked ) );
 						}
 					} else {
-						// Otherwise, if a candidate was already imported, just download the rest of them to the same folder as the imported attachment.
+						// Otherwise, if a previous ranked src was already imported, just download the rest of them to the same folder as the imported attachment.
 						$target_path   = $imported_folder;
 						$download_path = trailingslashit( $target_path ) . basename( $img_import_path );
 
