@@ -336,11 +336,6 @@ class Test_Downloader extends WP_UnitTestCase {
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
 			),
-			// E.g. 2. intermediate image based on a scaled image: returns scaled non-intermediate.
-			array(
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled-300x244.jpg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
-			),
 			// E.g. 3. non-intermediate image: returns null.
 			array(
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
@@ -426,11 +421,6 @@ class Test_Downloader extends WP_UnitTestCase {
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				null,
 			),
-			// E.g. 10. intermediate image based on scaled image: returns null (only removes -scaled, not -300x244).
-			array(
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled-300x244.jpg',
-				null,
-			),
 		);
 	}
 
@@ -458,17 +448,6 @@ class Test_Downloader extends WP_UnitTestCase {
 				[
 					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 					'src_non_intermediate' => null,
-					'src_non_scaled'       => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
-					'title'                => '',
-					'alt'                  => '',
-				],
-			],
-			// Scaled + intermediate image.
-			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled-300x244.jpg',
-				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled-300x244.jpg',
-					'src_non_intermediate' => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 					'src_non_scaled'       => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 					'title'                => '',
 					'alt'                  => '',

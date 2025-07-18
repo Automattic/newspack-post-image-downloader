@@ -168,7 +168,7 @@ class Downloader {
 					array(
 						'type'        => 'flag',
 						'name'        => 'do-not-download-large-sizes',
-						'description' => 'Unless this flag is set, the command will attempt to download the large sized non-scaled and non-intermediate images together with the image URLs encountered in post_content. E.g.1. for an intermediate image https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will additionally attempt to download the non-intermediate image without the `-300x244` suffix https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg . E.g.2. for a scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg it will additionally try and download the non-scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg . E.g.3. And for an image which is both scaled and intermediate https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled-300x244.jpg it will additionally try and download both the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg and the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg images. See more about intermediate images and image sizes in WordPress docs.',
+						'description' => 'Unless this flag is set, the command will attempt to import the large sized non-scaled and non-intermediate images together with the smaller image URLs found in post_content. E.g.1. for an intermediate image https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will attempt to import the non-intermediate image without the `-300x244` suffix https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg . E.g.2. for a scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg it will try and import the non-scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg . See more about intermediate images and image sizes in WordPress docs.',
 						'optional'    => true,
 						'repeating'   => false,
 					),
@@ -488,8 +488,8 @@ class Downloader {
 				$alt                  = trim( $img_datum['alt'] );
 
 				// Boolean flags for simpler logic.
-				$is_scaled       = null !== $src_non_scaled;
-				$is_intermediate = null !== $src_non_intermediate;
+				$is_scaled       = ! empty( $src_non_scaled );
+				$is_intermediate = ! empty( $src_non_intermediate );
 
 				// Basic URL validation.
 				if ( ! filter_var( $src, FILTER_VALIDATE_URL ) ) {
@@ -516,34 +516,25 @@ class Downloader {
 				}
 
 				/**
-				 * Build a ranked list of image srcs by setting the highest quality versions of the src first.
+				 * A ranked list of this image's srcs, setting the highest quality version at the beginning.
 				 * 
-				 * @param array $srcs_ranked An ordered array of $img_datum's srcs, where the largest and highest quality versions of the src go first.
+				 * @param array $srcs_ranked An ordered array of $img_datum's srcs.
 				 * 
-				 * The goal is to loop over this list $srcs_ranked, import just the first one into the Media Library (so that the the Media Library
-				 * attachment gets created from the highest quality image available), and just physically download the smaller srcs next into the same
-				 * path as the attachment (in case our local site thumbnails are registered differently than the remote site's, and not all
-				 * the same intermediate/thumbnail images get generated during the large attachment import).
+				 * The goal is to loop over this $srcs_ranked list, and import just the first one into the Media Library (the highest quality image),
+				 * and then just physically download the smaller srcs to the same path where the attachment was imported (it's possible that the
+				 * thumbnails are differently registered than on the remote site, so the smaller srcs might need to be downloaded too).
 				 */
 				$srcs_ranked = [];
 				// Add the larger and highest quality versions of the src to the list first.
-				if ( $is_scaled && $is_intermediate ) {
-					// E.g. image-scaled-100x200.jpg: add larger image.jpg, image-scaled.jpg.
+				if ( $is_scaled ) {
+					// E.g. if $src is image-scaled.jpg, add image.jpg first.
 					if ( $src_non_scaled ) {
 						$srcs_ranked[] = $src_non_scaled;
-					}
-					if ( $src_non_intermediate ) {
-						$srcs_ranked[] = $src_non_intermediate;
 					}
 				} elseif ( $is_intermediate ) {
-					// E.g. image-100x200.jpg: add larger image.jpg.
+					// E.g. if $src is image-300x200.jpg, add larger image.jpg first.
 					if ( $src_non_intermediate ) {
 						$srcs_ranked[] = $src_non_intermediate;
-					}
-				} elseif ( $is_scaled ) {
-					// image-scaled.jpg: add image.jpg.
-					if ( $src_non_scaled ) {
-						$srcs_ranked[] = $src_non_scaled;
 					}
 				}
 				// Add the "original" src (the one from post_content) to end of list.
@@ -805,9 +796,6 @@ class Downloader {
 	 * - Intermediate images are images which have been resized to a specific width and height, but are not the original image.
 	 *      E.g.: https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-300x244.jpg
 	 * 
-	 * - And also, WP images can be both scaled and intermediate.
-	 *      E.g.: https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled-300x244.jpg
-	 * 
 	 * @param array $img_data {
 	 *      Array of image data, each element is a subarray with three keys.
 	 *      @type string 'src'   The image's URL.
@@ -893,8 +881,8 @@ class Downloader {
 	 * E.g. 1. if $src is an intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg
 	 * it will return the non-intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg
 	 * 
-	 * E.g. 2. if provided an intermediate image based on a scaled image: https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled-300x244.jpg
-	 * it will return the scaled non-intermediateimage: https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg
+	 * E.g. 2. if provided a scaled image: https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg
+	 * it will return null, because it's already non-intermediate: null
 	 * 
 	 * E.g. 3. if provided a non-intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg
 	 * it will return null, because it's already non-intermediate: null
@@ -931,8 +919,8 @@ class Downloader {
 	 * E.g. 2. if provided a non-scaled image: https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy.jpg
 	 * it will return null, because it's already non-scaled: null
 	 *
-	 * E.g. 3. if provided a scaled and intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy-scaled-300x244.jpg
-	 * it will return null: null
+	 * E.g. 3. if provided an intermediate image (not scaled): https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy-300x244.jpg
+	 * it will return null, because it's not a scaled image: null
 	 *
 	 * @param string $src  The input image URL.
 	 * @return string|null The URL without the '-scaled' suffix, or null if '-scaled' suffix is not used in $src.
