@@ -556,7 +556,7 @@ class Downloader {
 				$src_local       = null;
 				foreach ( $srcs_ranked as $key_src_ranked => $src_ranked ) {
 
-					// Get the fully qualified path of the current ranked src file (either from local folder, or from remote URL).
+					// Get the fully qualified import path of this ranked src file (either from local folder, or from remote URL).
 					$img_import_path = null;
 					try {
 						$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_images, $default_image_host_and_schema );
