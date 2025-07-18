@@ -167,8 +167,8 @@ class Downloader {
 					),
 					array(
 						'type'        => 'flag',
-						'name'        => 'do-not-download-full-sizes',
-						'description' => 'Unless this flag is set, the command will attempt to download the full sized non-scaled images along with the intemediate/scaled image URLs encountered in post_content, if these larger images are available. E.g.1. for the image https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will additionally attempt to download the image without the `-300x244` suffix https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg . E.g.2. for image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg it will additionally try and download this image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg . E.g.3. And for the image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled-300x244.jpg it will additionally try and download both the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg and the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg images. See more about intermediate images and image sizes in WordPress docs.',
+						'name'        => 'do-not-download-large-sizes',
+						'description' => 'Unless this flag is set, the command will attempt to download the large sized non-scaled and non-intermediate images together with the image URLs encountered in post_content. E.g.1. for an intermediate image https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will additionally attempt to download the non-intermediate image without the `-300x244` suffix https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg . E.g.2. for a scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg it will additionally try and download the non-scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg . E.g.3. And for an image which is both scaled and intermediate https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled-300x244.jpg it will additionally try and download both the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg and the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg images. See more about intermediate images and image sizes in WordPress docs.',
 						'optional'    => true,
 						'repeating'   => false,
 					),
@@ -405,7 +405,7 @@ class Downloader {
 	 */
 	public function cmd_import_images( $args, $assoc_args ) {
 		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
-		$do_not_download_full_sizes    = isset( $assoc_args['do-not-download-full-sizes'] ) ? true : false;
+		$do_not_download_large_sizes   = isset( $assoc_args['do-not-download-large-sizes'] ) ? true : false;
 		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post', 'page' );
 		$post_statuses                 = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
 		$post_ids_specific             = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
@@ -452,7 +452,7 @@ class Downloader {
 			exit;
 		}
 
-		foreach ( $posts as $key_candidate => $post ) {
+		foreach ( $posts as $key_post => $post ) {
 			// Extract attributes from all the `<img>`s.
 			$img_data = ( new Crawler( $post['post_content'] ) )->filterXpath( '//img' )->extract( array( 'src', 'title', 'alt' ) );
 			
@@ -468,13 +468,13 @@ class Downloader {
 				$img_data
 			);
 
-			WP_CLI::line( sprintf( '👉 (%d/%d) ID %d, found %d images...', $key_candidate + 1, count( $posts ), $post['ID'], count( $img_data ) ) );
+			WP_CLI::line( sprintf( '👉 (%d/%d) post ID %d, found %d images...', $key_post + 1, count( $posts ), $post['ID'], count( $img_data ) ) );
 			if ( empty( $img_data ) ) {
 				continue;
 			}
 
 			// Extend the $img_data array with the full sized image URLs to be downloaded (non-intermediate and non-scaled versions of the image).
-			if ( ! $do_not_download_full_sizes ) {
+			if ( ! $do_not_download_large_sizes ) {
 				$img_data = $this->include_full_sized_images_in_img_data( $img_data, $post['ID'], $post_id_from, $post_id_to );
 			}
 
@@ -515,65 +515,58 @@ class Downloader {
 					}
 				}
 
-				// Get a list of the large image sources, we'll call them "candidates".
-				// The goal is to import into the Media Library the very largest available image file/candidate, and then physically just download the smaller ones to the same path.
-				$candidates = [];
+				/**
+				 * Build a prioritized list of image src "variants", by setting the largest versions of the src first.
+				 * 
+				 * @param array $src_variants An ordered array of $img_datum's srcs, where the largest highest quality versions of the src are first.
+				 * 
+				 * The goal is to loop over this list $src_variants, import just the first one into the Media Library (so that the the Media Library
+				 * attachment gets created from the highest quality image available), and just physically download the smaller srcs next into the same
+				 * path as the attachment (in case our local site thumbnails are registered differently than the remote site's, and not all
+				 * the same intermediate/thumbnail images get generated during the large attachment import).
+				 */
+				$src_variants = [];
+				// Add the larger and highest quality versions of the src to the list first.
 				if ( $is_scaled && $is_intermediate ) {
 					// E.g. image-scaled-100x200.jpg: add larger image.jpg, image-scaled.jpg.
 					if ( $src_non_scaled ) {
-						$candidates[] = [
-							'src'  => $src_non_scaled,
-							'type' => 'non_scaled',
-						];
+						$src_variants[] = $src_non_scaled;
 					}
 					if ( $src_non_intermediate ) {
-						$candidates[] = [
-							'src'  => $src_non_intermediate,
-							'type' => 'non_intermediate',
-						];
+						$src_variants[] = $src_non_intermediate;
 					}
 				} elseif ( $is_intermediate ) {
 					// E.g. image-100x200.jpg: add larger image.jpg.
 					if ( $src_non_intermediate ) {
-						$candidates[] = [
-							'src'  => $src_non_intermediate,
-							'type' => 'non_intermediate',
-						];
+						$src_variants[] = $src_non_intermediate;
 					}
 				} elseif ( $is_scaled ) {
 					// image-scaled.jpg: add image.jpg.
 					if ( $src_non_scaled ) {
-						$candidates[] = [
-							'src'  => $src_non_scaled,
-							'type' => 'non_scaled',
-						];
+						$src_variants[] = $src_non_scaled;
 					}
 				}
-				// Add the original image to end of list.
-				$candidates[] = [
-					'src'  => $src,
-					'type' => 'original',
-				];
+				// Add the "original" src (the one from post_content) to end of list.
+				$src_variants[] = $src;
 
 				// Import the largest image into the Media Library (the first candidate), then just physically also download the rest of them in the same path.
 				$imported        = false;
 				$attachment_id   = null;
 				$imported_folder = null;
-				$src_local_url   = null;
-				foreach ( $candidates as $key_candidate => $candidate ) {
-					$candidate_src = $candidate['src'];
+				$src_local       = null;
+				foreach ( $src_variants as $src_variant ) {
 
 					// Get the fully qualified path of the current candidate file (either from local folder, or from remote URL).
 					$img_import_path = null;
 					try {
-						$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $candidate_src, $folder_local_images, $default_image_host_and_schema );
+						$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_variant, $folder_local_images, $default_image_host_and_schema );
 					} catch ( \Exception $e ) {
 						if ( self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED == $e->getCode() ) {
 							WP_CLI::warning( sprintf( '❗ Default download host+schema missing: %s', $e->getMessage() ) );
-							$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $candidate_src ) );
+							$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_variant ) );
 						} else {
 							WP_CLI::warning( sprintf( '❗ Unknown error when getting image path: %s', $e->getMessage() ) );
-							$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $candidate_src ) );
+							$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_variant ) );
 						}
 						// Try the following import candidate.
 						continue;
@@ -596,13 +589,13 @@ class Downloader {
 							$attachment_id = $attachments_logic->import_external_file( $img_import_path, $title_to_use, null, null, $alt_to_use, $post['ID'] );
 							if ( is_wp_error( $attachment_id ) ) {
 								WP_CLI::warning( sprintf( '❗ Error while importing image: %s', $attachment_id->get_error_message() ) );
-								$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $candidate_src, $attachment_id->get_error_message() ) );
+								$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $src_variant, $attachment_id->get_error_message() ) );
 								continue;
 							}
 							$imported = true;
 							$this->log(
 								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-								sprintf( "Imported Post ID %d ; src '%s' ; attachment ID %s", $post['ID'], $candidate_src, $attachment_id )
+								sprintf( "Imported Post ID %d ; src '%s' ; attachment ID %s", $post['ID'], $src_variant, $attachment_id )
 							);
 							
 							// Get the target directory where the attachment was saved.
@@ -610,15 +603,15 @@ class Downloader {
 							$imported_folder = dirname( $target_path );
 							
 							// If this is the $src, note new the new URL.
-							if ( $src == $candidate_src ) {
-								$src_local_url = wp_get_attachment_url( $attachment_id );
+							if ( $src == $src_variant ) {
+								$src_local = wp_get_attachment_url( $attachment_id );
 							}
 						} else {
 							// Dry run.
 							$imported        = true;
 							$upload_dir      = wp_upload_dir();
 							$imported_folder = $upload_dir['path'];
-							WP_CLI::line( sprintf( "[Dry Run] Importing Post ID %d ; src '%s'", $post['ID'], $candidate_src ) );
+							WP_CLI::line( sprintf( "[Dry Run] Importing Post ID %d ; src '%s'", $post['ID'], $src_variant ) );
 						}
 					} else {
 						// Otherwise, if a candidate was already imported, just download the rest of them to the same folder as the imported attachment.
@@ -627,6 +620,12 @@ class Downloader {
 
 						// If the file already exists, skip download.
 						if ( $this->file_exists( $download_path ) ) {
+							// If this is the $src, and it already exists in the target folder, note new the new local URL.
+							if ( $src == $src_variant ) {
+								// Same folder (URL path) as imported $attachment_id, with $src's filename.
+								$src_local = dirname( wp_get_attachment_url( $attachment_id ) ) . '/' . basename( $src );
+							}
+
 							$this->log(
 								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
 								sprintf( 'Already exists, skipping download: %s', $download_path )
@@ -636,46 +635,46 @@ class Downloader {
 
 						// Download the rest of the files to the same folder where the attachment was imported.
 						if ( ! $dry_run ) {
-							$downloaded = $this->download_file_to_dir( $candidate_src, $target_path );
+							$downloaded = $this->download_file_to_dir( $src_variant, $target_path );
 							// Handle error.
 							if ( is_wp_error( $downloaded ) ) {
-								WP_CLI::warning( sprintf( "❗ Failed to download file '%s' to '%s', error: %s", $candidate_src, $target_path, $downloaded->get_error_message() ) );
+								WP_CLI::warning( sprintf( "❗ Failed to download file '%s' to '%s', error: %s", $src_variant, $target_path, $downloaded->get_error_message() ) );
 								$this->log(
 									$this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ),
-									sprintf( "ID %d src '%s' : download_file_to_dir failed, error: %s", $post['ID'], $candidate_src, $downloaded->get_error_message() )
+									sprintf( "ID %d src '%s' : download_file_to_dir failed, error: %s", $post['ID'], $src_variant, $downloaded->get_error_message() )
 								);
 								continue;
 							}
 
-							// If this is the $src, note new the new URL.
-							if ( $src == $candidate_src ) {
-								$src_local_url = $downloaded;
+							// If this is the $src, and it has been downloaded, note new the new local URL.
+							if ( $src == $src_variant ) {
+								// Same folder (URL path) as imported $attachment_id, with $src's filename.
+								$src_local = dirname( wp_get_attachment_url( $attachment_id ) ) . '/' . basename( $src );
 							}
 							
 							$this->log(
 								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-								sprintf( "Downloaded Post ID %d ; src '%s' ; saved to '%s'", $post['ID'], $candidate_src, $downloaded )
+								sprintf( "Downloaded Post ID %d ; src '%s' ; saved to '%s'", $post['ID'], $src_variant, $downloaded )
 							);
 						} else {
 							// Dry run.
-							WP_CLI::line( sprintf( "[Dry Run] Would download Post ID %d ; src '%s' ; to '%s'", $post['ID'], $candidate_src, $download_path ) );
+							WP_CLI::line( sprintf( "[Dry Run] Would download Post ID %d ; src '%s' ; to '%s'", $post['ID'], $src_variant, $download_path ) );
 						}
 					}
 				}
 
-				// Replace URL $src with $src_local_url.
-				if ( $src_local_url ) {
+				// Replace URL $src with $src_local.
+				if ( $src_local ) {
 					$this->log(
 						$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-						sprintf( "Replacing in post content: Post ID %d ; original src '%s' ; new src '%s'", $post['ID'], $src, $src_local_url )
+						sprintf( "Replacing in post content: Post ID %d ; original src '%s' ; new src '%s'", $post['ID'], $src, $src_local )
 					);
-					// Replace the $src in Post content with the imported/downloaded one (both raw and escaped src).
-					$post_content_updated = str_replace( [ esc_attr( $src ), $src ], $src_local_url, $post_content_updated );
-				} else {
-					WP_CLI::warning( sprintf( "❗ Failed to import or download any variant for '%s'", $src ) );
-					$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : failed all import/download attempts', $post['ID'], $src ) );
+					// Replace $src (escaped and non-escaped) in Post content with new imported/downloaded $src_local.
+					$post_content_updated = str_replace( [ esc_attr( $src ), $src ], $src_local, $post_content_updated );
+				} elseif ( ! $dry_run ) {
+						WP_CLI::warning( sprintf( "❗ Failed to import or download any variant for '%s'", $src ) );
+						$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : failed all import/download attempts', $post['ID'], $src ) );
 				}
-				// _________ new code END ____________
 			}
 
 			// Update the Post content.
@@ -827,7 +826,7 @@ class Downloader {
 	 *      @type string 'alt'                   The image's alt attribute.
 	 * }
 	 */
-	public function include_full_sized_images_in_img_data( array $img_data, int $post_id, int $post_id_from, int $post_id_to ): array {
+	public function include_full_sized_images_in_img_data( array $img_data, int $post_id, ?int $post_id_from, ?int $post_id_to ): array {
 		$img_data_with_large = [];
 		foreach ( $img_data as $key_img_datum => $img_datum ) {
 			$src = trim( $img_datum['src'] );
@@ -852,9 +851,10 @@ class Downloader {
 			// Add the non-intermediate and non-scaled URLs.
 			$src_non_intermediate = $this->get_non_intermediate_img_url( $src );
 			if ( ! is_null( $src_non_intermediate ) ) {
+				WP_CLI::log( sprintf( "Adding non-intermediate image URL: post ID %d src '%s' non-intermediate '%s'", $post_id, $src, $src_non_intermediate ) );
 				$this->log(
 					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-					sprintf( "ID %d src '%s' including non-intermediate URL '%s' for download", $post_id, $src, $src_non_intermediate )
+					sprintf( "Adding non-intermediate image URL: post ID %d src '%s' non-intermediate '%s'", $post_id, $src, $src_non_intermediate )
 				);
 			}
 			$src_non_scaled = null;
@@ -865,9 +865,10 @@ class Downloader {
 				$src_non_scaled = $this->get_non_scaled_img_url( $src );
 			}
 			if ( ! is_null( $src_non_scaled ) ) {
+				WP_CLI::log( sprintf( "Adding non-scaled image URL: post ID %d src '%s' non-scaled '%s'", $post_id, $src, $src_non_scaled ) );
 				$this->log(
 					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-					sprintf( "ID %d src '%s' including non-scaled URL '%s' for download", $post_id, $src, $src_non_scaled )
+					sprintf( "Adding non-scaled image URL: post ID %d src '%s' non-scaled '%s'", $post_id, $src, $src_non_scaled )
 				);
 			}
 			$img_data_with_large[ $key_img_datum ] = [
