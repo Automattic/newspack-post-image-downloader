@@ -837,7 +837,7 @@ class Downloader {
 			}
 
 			// SVGs are not resized by WP, so skip adding non-intermediate and non-scaled URLs for them.
-			$extension = strtolower( pathinfo( parse_url( $src, PHP_URL_PATH ), PATHINFO_EXTENSION ) );
+			$extension = strtolower( pathinfo( wp_parse_url( $src, PHP_URL_PATH ), PATHINFO_EXTENSION ) );
 			if ( 'svg' === $extension ) {
 				$img_data_with_large[ $key_img_datum ] = [
 					'src'                  => $src,
@@ -857,8 +857,14 @@ class Downloader {
 					sprintf( "ID %d src '%s' including non-intermediate URL '%s' for download", $post_id, $src, $src_non_intermediate )
 				);
 			}
-			$src_non_scaled = $this->get_non_scaled_img_url( $src_non_intermediate );
+			$src_non_scaled = null;
+			// Writing the following block in a more verbose way just for clarity -- if the 'src' was intermediate, then we try to descale $src_non_intermediate; if it was not intermediate, then we try to descale $src.
 			if ( ! is_null( $src_non_intermediate ) ) {
+				$src_non_scaled = $this->get_non_scaled_img_url( $src_non_intermediate );
+			} else {
+				$src_non_scaled = $this->get_non_scaled_img_url( $src );
+			}
+			if ( ! is_null( $src_non_scaled ) ) {
 				$this->log(
 					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
 					sprintf( "ID %d src '%s' including non-scaled URL '%s' for download", $post_id, $src, $src_non_scaled )
@@ -923,6 +929,9 @@ class Downloader {
 	 * 
 	 * E.g. 2. if provided a non-scaled image: https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy.jpg
 	 * it will return null, because it's already non-scaled: null
+	 *
+	 * E.g. 3. if provided a scaled and intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy-scaled-300x244.jpg
+	 * it will return null: null
 	 *
 	 * @param string $src  The input image URL.
 	 * @return string|null The URL without the '-scaled' suffix, or null if '-scaled' suffix is not used in $src.
@@ -994,10 +1003,10 @@ class Downloader {
 			$img_import_path = $src;
 		} elseif ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
 			// Use the `--default-image-host-and-schema` to try and download a relative URL.
-			throw ( new RuntimeException(
-				sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', $src ),
-				self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED
-			) );
+			throw new RuntimeException(
+				sprintf( 'Could not download src %s since no `--default-image-host-and-schema` was provided.', esc_url( $src ) ),
+				esc_attr( self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED )
+			);
 		} elseif ( $is_src_relative_ref && $default_image_host_and_schema ) {
 			// A relative reference from root -- turning it to a fully qualified (absolute) one.
 			$img_import_path = $default_image_host_and_schema
@@ -1100,9 +1109,9 @@ class Downloader {
 
 		if ( null !== $post_ids ) {
 			$ids_placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
-			$query .= " AND ID IN ({$ids_placeholders}) ";
-			$prepare_args = array_merge( $prepare_args, $post_ids );
-		} else if ( null !== $post_id_from && null !== $post_id_to ) {
+			$query           .= " AND ID IN ({$ids_placeholders}) ";
+			$prepare_args     = array_merge( $prepare_args, $post_ids );
+		} elseif ( null !== $post_id_from && null !== $post_id_to ) {
 			$query .= ' AND ID BETWEEN %d AND %d ';
 			array_push( $prepare_args, $post_id_from, $post_id_to );
 		}
@@ -1138,7 +1147,7 @@ class Downloader {
 		// Remove empty, if it was attributed from an empty node.
 		$key_empty = array_search( '', $img_srcs );
 		if ( false !== $key_empty ) {
-			unset( $img_srcs[$key_empty] );
+			unset( $img_srcs[ $key_empty ] );
 			$img_srcs = array_values( $img_srcs );
 		}
 
@@ -1157,21 +1166,28 @@ class Downloader {
 		$crawler = new Crawler( $html );
 		
 		// Extract all href attributes.
-		$crawler->filter( '[href]' )->each(function ( $node ) use ( &$urls ) {
-			$urls[] = $node->attr( 'href' );
-		});
+		$crawler->filter( '[href]' )->each(
+			function ( $node ) use ( &$urls ) {
+				$urls[] = $node->attr( 'href' );
+			}
+		);
 		
 		// Extract all src attributes.
-		$crawler->filter( '[src]' )->each( function ( $node ) use ( &$urls ) {
-			$urls[] = $node->attr( 'src' );
-		});
+		$crawler->filter( '[src]' )->each(
+			function ( $node ) use ( &$urls ) {
+				$urls[] = $node->attr( 'src' );
+			}
+		);
 
 		// Trim, unique, and remove empty (if it was attributed from an empty node).
 		$urls = array_map( 'trim', $urls );
 		$urls = array_unique( $urls );
-		$urls = array_filter( $urls, function( $url ) {
-			return ! empty( $url );
-		} );
+		$urls = array_filter(
+			$urls,
+			function ( $url ) {
+				return ! empty( $url );
+			}
+		);
 		// Update keys.
 		$urls = array_values( $urls );
 
@@ -1180,6 +1196,8 @@ class Downloader {
 
 	/**
 	 * Attempts to determine image file extension from the mime encoding of the image file.
+	 * 
+	 * Note, this method was previously used, presently discontinued, but could again be used in the future.
 	 *
 	 * @param string $filename Full file path.
 	 *
@@ -1214,7 +1232,7 @@ class Downloader {
 	 */
 	private function log( $file, $message ) {
 		$message .= "\n";
-		file_put_contents( $file, $message, FILE_APPEND );
+		file_put_contents( $file, $message, FILE_APPEND ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_file_put_contents.
 	}
 
 	/**
