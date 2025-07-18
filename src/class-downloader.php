@@ -44,6 +44,7 @@ class Downloader {
 
 	/**
 	 * Regex pattern for matching intermediate image sizes, with a placeholder for extensions.
+	 * E.g. for `https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg` this matches `300`, `244` and `jpg`.
 	 */
 	private const INTERMEDIATE_IMG_PATTERN = '/-(\\d+)x(\\d+)\\.(%s)$/i';
 
@@ -167,7 +168,7 @@ class Downloader {
 					array(
 						'type'        => 'flag',
 						'name'        => 'do-not-download-full-sizes',
-						'description' => 'Unless this flag is set, the command will attempt to download the full sized non-scaled images along with the specific intemediate/scaled image URLs where those are available. E.g.1. for the image https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will additionally attempt to download the image without the `-300x244` suffix https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg . E.g.2. for image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg it will additionally try and download this image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg . E.g.3. And for the image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled-300x244.jpg it will additionally try and download both the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg and the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg images. See more about intermediate images and image sizes in WordPress docs.',
+						'description' => 'Unless this flag is set, the command will attempt to download the full sized non-scaled images along with the intemediate/scaled image URLs encountered in post_content, if these larger images are available. E.g.1. for the image https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will additionally attempt to download the image without the `-300x244` suffix https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg . E.g.2. for image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg it will additionally try and download this image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg . E.g.3. And for the image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled-300x244.jpg it will additionally try and download both the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg and the https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg images. See more about intermediate images and image sizes in WordPress docs.',
 						'optional'    => true,
 						'repeating'   => false,
 					),
@@ -304,7 +305,7 @@ class Downloader {
 
 		// Tada!
 		$log_file = $this->get_log_name( self::LOG_FILE_URLS, $post_id_from, $post_id_to );
-		if ( file_exists( $log_file ) ) {
+		if ( $this->file_exists( $log_file ) ) {
 			unlink( $log_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 		}
 		WP_CLI::success( sprintf( '👉 Found %d total URLs%s', count( $urls ), ( count( $urls ) > 0 ? ' and saved them to `' . $log_file . '`' : '.' ) ) );
@@ -439,7 +440,7 @@ class Downloader {
 			$this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ),
 		);
 		foreach ( $logs as $log ) {
-			if ( file_exists( $log ) ) {
+			if ( $this->file_exists( $log ) ) {
 				unlink( $log ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 			}
 		}
@@ -474,7 +475,7 @@ class Downloader {
 
 			// Extend the $img_data array with the full sized image URLs to be downloaded (non-intermediate and non-scaled versions of the image).
 			if ( ! $do_not_download_full_sizes ) {
-				$img_data = $this->include_full_sized_images_in_img_data( $img_data );
+				$img_data = $this->include_full_sized_images_in_img_data( $img_data, $post['ID'], $post_id_from, $post_id_to );
 			}
 
 			// Download images in post content.
@@ -599,29 +600,25 @@ class Downloader {
 								continue;
 							}
 							$imported = true;
+							$this->log(
+								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
+								sprintf( "Imported Post ID %d ; src '%s' ; attachment ID %s", $post['ID'], $candidate_src, $attachment_id )
+							);
 							
 							// Get the target directory where the attachment was saved.
 							$target_path     = get_attached_file( $attachment_id );
 							$imported_folder = dirname( $target_path );
 							
-							// If this is the $src, save new the new URL.
-							if ( $candidate_src === $src ) {
+							// If this is the $src, note new the new URL.
+							if ( $src == $candidate_src ) {
 								$src_local_url = wp_get_attachment_url( $attachment_id );
 							}
-							
-							$this->log(
-								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-								sprintf( 'Imported (Media Library) Post ID %d ; src %s ; attachment ID %s ; saved to %s', $post['ID'], $candidate_src, $attachment_id, $imported_folder )
-							);
 						} else {
 							// Dry run.
 							$imported        = true;
 							$upload_dir      = wp_upload_dir();
 							$imported_folder = $upload_dir['path'];
-							$this->log(
-								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-								sprintf( '[Dry Run] Would import (Media Library) Post ID %d ; src %s ; uploads dir %s', $post['ID'], $candidate_src, $imported_folder )
-							);
+							WP_CLI::line( sprintf( "[Dry Run] Importing Post ID %d ; src '%s'", $post['ID'], $candidate_src ) );
 						}
 					} else {
 						// Otherwise, if a candidate was already imported, just download the rest of them to the same folder as the imported attachment.
@@ -629,7 +626,7 @@ class Downloader {
 						$download_path = trailingslashit( $target_path ) . basename( $img_import_path );
 
 						// If the file already exists, skip download.
-						if ( file_exists( $download_path ) ) {
+						if ( $this->file_exists( $download_path ) ) {
 							$this->log(
 								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
 								sprintf( 'Already exists, skipping download: %s', $download_path )
@@ -650,8 +647,8 @@ class Downloader {
 								continue;
 							}
 
-							// If this is the $src, save new the new URL.
-							if ( $candidate_src === $src ) {
+							// If this is the $src, note new the new URL.
+							if ( $src == $candidate_src ) {
 								$src_local_url = $downloaded;
 							}
 							
@@ -670,7 +667,7 @@ class Downloader {
 				if ( $src_local_url ) {
 					$this->log(
 						$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-						sprintf( "Replaced in post content: Post ID %d ; original src '%s' ; new src '%s'", $post['ID'], $src, $src_local_url )
+						sprintf( "Replacing in post content: Post ID %d ; original src '%s' ; new src '%s'", $post['ID'], $src, $src_local_url )
 					);
 					// Replace the $src in Post content with the imported/downloaded one (both raw and escaped src).
 					$post_content_updated = str_replace( [ esc_attr( $src ), $src ], $src_local_url, $post_content_updated );
@@ -737,7 +734,7 @@ class Downloader {
 		// Move downloaded file to the target directory.
 		if ( ! rename( $temp_file, $final_path ) ) { // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 			// Handle error and clean up temp file.
-			if ( file_exists( $temp_file ) ) {
+			if ( $this->file_exists( $temp_file ) ) {
 				unlink( $temp_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 			}
 			return new WP_Error( 'move_error', 'Failed to move downloaded file.' );
@@ -798,7 +795,7 @@ class Downloader {
 	}
 
 	/**
-	 * Adds full sized image URLs to the $img_data array.
+	 * Adds full sized image URLs to the $img_data array, except for SVGs.
 	 * 
 	 * WP images can be scaled, intermediate, or both.
 	 * 
@@ -818,6 +815,9 @@ class Downloader {
 	 *      @type string 'title' The image's title attribute.
 	 *      @type string 'alt'   The image's alt attribute.
 	 * }
+	 * @param int   $post_id      The Post ID.
+	 * @param int   $post_id_from The start of the Post ID range.
+	 * @param int   $post_id_to   The end of the Post ID range.
 	 * @return array {
 	 *      Array of image data same as input, but with additional full-sized image elements if found.
 	 *      @type string 'src'                   The image's URL.
@@ -827,7 +827,7 @@ class Downloader {
 	 *      @type string 'alt'                   The image's alt attribute.
 	 * }
 	 */
-	public function include_full_sized_images_in_img_data( array $img_data ): array {
+	public function include_full_sized_images_in_img_data( array $img_data, int $post_id, int $post_id_from, int $post_id_to ): array {
 		$img_data_with_large = [];
 		foreach ( $img_data as $key_img_datum => $img_datum ) {
 			$src = trim( $img_datum['src'] );
@@ -836,9 +836,34 @@ class Downloader {
 				continue;
 			}
 
+			// SVGs are not resized by WP, so skip adding non-intermediate and non-scaled URLs for them.
+			$extension = strtolower( pathinfo( parse_url( $src, PHP_URL_PATH ), PATHINFO_EXTENSION ) );
+			if ( 'svg' === $extension ) {
+				$img_data_with_large[ $key_img_datum ] = [
+					'src'                  => $src,
+					'src_non_intermediate' => null,
+					'src_non_scaled'       => null,
+					'title'                => $img_datum['title'],
+					'alt'                  => $img_datum['alt'],
+				];
+				continue;
+			}
+
 			// Add the non-intermediate and non-scaled URLs.
-			$src_non_intermediate                  = $this->get_non_intermediate_img_url( $src );
-			$src_non_scaled                        = $this->get_non_scaled_img_url( $src_non_intermediate );
+			$src_non_intermediate = $this->get_non_intermediate_img_url( $src );
+			if ( ! is_null( $src_non_intermediate ) ) {
+				$this->log(
+					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
+					sprintf( "ID %d src '%s' including non-intermediate URL '%s' for download", $post_id, $src, $src_non_intermediate )
+				);
+			}
+			$src_non_scaled = $this->get_non_scaled_img_url( $src_non_intermediate );
+			if ( ! is_null( $src_non_intermediate ) ) {
+				$this->log(
+					$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
+					sprintf( "ID %d src '%s' including non-scaled URL '%s' for download", $post_id, $src, $src_non_scaled )
+				);
+			}
 			$img_data_with_large[ $key_img_datum ] = [
 				'src'                  => $src,
 				'src_non_intermediate' => $src_non_intermediate,
@@ -849,37 +874,6 @@ class Downloader {
 		}
 
 		return $img_data_with_large;
-	}
-
-	/**
-	 * Get the intermediate image size suffix from an intermediate image URL.
-	 * 
-	 * If $src contains an URL of an intermediate image (with the `-{WIDTH}x{HEIGHT}` suffix),
-	 * returns the `-{WIDTH}x{HEIGHT}` suffix, or null if $src is not intermediate (does not have such suffix).
-	 * 
-	 * E.g. 1. if $src is an intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg
-	 * it will return the `-{WIDTH}x{HEIGHT}` suffix: '-300x244'
-	 * 
-	 * E.g. 2. if $src is a non-intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg
-	 * it will return null, because it's already non-intermediate: null
-	 * 
-	 * @param string $src  The input image URL.
-	 * @return string|null The `-{WIDTH}x{HEIGHT}` suffix, or null if no `-{WIDTH}x{HEIGHT}` suffix was found.
-	 */
-	public function get_intermediate_img_url_size_suffix( string $src ): ?string {
-		// Trim the src and remove any get parameters.
-		$src = trim( $src );
-		$src = preg_replace( '/\?.*$/', '', $src );
-
-		// Pattern to match the intermediate image size suffix, e.g. '-300x244.jpg'.
-		$pattern = sprintf( self::INTERMEDIATE_IMG_PATTERN, implode( '|', self::WP_IMAGE_EXTENSIONS ) );
-		if ( preg_match( $pattern, $src, $matches ) ) {
-			// Return the matched suffix without the extension.
-			return $matches[0] ? '-' . $matches[1] . 'x' . $matches[2] : null;
-		}
-
-		// Not an intermediate image.
-		return null;
 	}
 
 	/**
@@ -918,46 +912,6 @@ class Downloader {
 	}
 
 	/**
-	 * Get the intermediate image URL from a non-intermediate image URL.
-	 * 
-	 * If $src does not contain an URL of an intermediate image (if it does not end in '-{WIDTH}x{HEIGHT}' suffix),
-	 * returns the intermediate image URL (with the provided size suffix added),
-	 * or null if $src is already intermediate (already has such suffix).
-	 * 
-	 * E.g. 1. if provided a non-intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg
-	 * and size suffix '-300x244', it will return the intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg
-	 * 
-	 * E.g. 2. if provided an intermediate image: https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg
-	 * it will return null, because it's already intermediate: null
-	 *
-	 * @param string $src         The input image URL.
-	 * @param string $size_suffix The size suffix to add, e.g. '-300x244'.
-	 * @return string|null        The URL with the size suffix added, or null if size suffix is already used in $src, or if the size suffix is not valid.
-	 */
-	public function get_intermediate_img_url( string $src, string $size_suffix ): ?string {
-		// Trim the src and remove any get parameters.
-		$src = trim( $src );
-		$src = preg_replace( '/\?.*$/', '', $src );
-
-		// Validate the size suffix format.
-		if ( ! preg_match( '/^-(\d+)x(\d+)$/', $size_suffix ) ) {
-			return null;
-		}
-
-		// Pattern to match the intermediate image size suffix, e.g. '-300x244.jpg'.
-		$pattern = sprintf( self::INTERMEDIATE_IMG_PATTERN, implode( '|', self::WP_IMAGE_EXTENSIONS ) );
-		if ( preg_match( $pattern, $src ) ) {
-			// Already has the size suffix.
-			return null;
-		}
-
-		// Add the size suffix before the extension. \1 puts the extension back.
-		$intermediate_img_url = preg_replace( '/\.(' . implode( '|', self::WP_IMAGE_EXTENSIONS ) . ')$/i', $size_suffix . '.\1', $src );
-
-		return $intermediate_img_url;
-	}
-
-	/**
 	 * Get the non-scaled image URL from a scaled image URL.
 	 * 
 	 * If $src contains an URL of a scaled image (if it ends in '-scaled' suffix),
@@ -987,40 +941,6 @@ class Downloader {
 
 		// Neither src nor src_nonintermediate had the `-scaled` suffix.
 		return null;
-	}
-
-	/**
-	 * Get the scaled image URL from a non-scaled image URL.
-	 * 
-	 * If $src does not contain an URL of a scaled image (if it does not end in '-scaled' suffix),
-	 * returns the scaled image URL (with the '-scaled' suffix added),
-	 * or null if $src is already scaled (already has such suffix).
-	 * 
-	 * E.g. 1. if provided a non-scaled image: https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg
-	 * it will return the scaled image: https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg
-	 * 
-	 * E.g. 2. if provided a scaled image: https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg
-	 * it will return null, because it's already scaled: null
-	 *
-	 * @param string $src  The input image URL.
-	 * @return string|null The URL with the '-scaled' suffix added, or null if '-scaled' suffix is already used in $src.
-	 */
-	public function get_scaled_img_url( string $src ): ?string {
-		// Trim the src and remove any get parameters.
-		$src = trim( $src );
-		$src = preg_replace( '/\?.*$/', '', $src );
-
-		// Pattern to match the scaled image suffix, e.g. '-scaled.jpg'.
-		$pattern = '/-scaled\.(' . implode( '|', self::WP_IMAGE_EXTENSIONS ) . ')$/i';
-		if ( preg_match( $pattern, $src ) ) {
-			// Already has the scaled suffix.
-			return null;
-		}
-
-		// Add the `-scaled` suffix before the extension. \1 puts the extension back.
-		$scaled_img_url = preg_replace( '/\.(' . implode( '|', self::WP_IMAGE_EXTENSIONS ) . ')$/i', '-scaled.\1', $src );
-
-		return $scaled_img_url;
 	}
 
 	/**
@@ -1127,7 +1047,7 @@ class Downloader {
 			return false;
 		}
 
-		$parsed   = wp_parse_url( $uri );
+		$parsed   = wp_parse_url( trim( $uri ) );
 		$host_uri = $parsed['host'] ?? null;
 		if ( null === $host_uri ) {
 			return false;
