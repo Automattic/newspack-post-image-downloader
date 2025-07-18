@@ -516,57 +516,57 @@ class Downloader {
 				}
 
 				/**
-				 * Build a prioritized list of image src "variants", by setting the largest versions of the src first.
+				 * Build a ranked list of image srcs by setting the highest quality versions of the src first.
 				 * 
-				 * @param array $src_variants An ordered array of $img_datum's srcs, where the largest highest quality versions of the src are first.
+				 * @param array $srcs_ranked An ordered array of $img_datum's srcs, where the largest and highest quality versions of the src go first.
 				 * 
-				 * The goal is to loop over this list $src_variants, import just the first one into the Media Library (so that the the Media Library
+				 * The goal is to loop over this list $srcs_ranked, import just the first one into the Media Library (so that the the Media Library
 				 * attachment gets created from the highest quality image available), and just physically download the smaller srcs next into the same
 				 * path as the attachment (in case our local site thumbnails are registered differently than the remote site's, and not all
 				 * the same intermediate/thumbnail images get generated during the large attachment import).
 				 */
-				$src_variants = [];
+				$srcs_ranked = [];
 				// Add the larger and highest quality versions of the src to the list first.
 				if ( $is_scaled && $is_intermediate ) {
 					// E.g. image-scaled-100x200.jpg: add larger image.jpg, image-scaled.jpg.
 					if ( $src_non_scaled ) {
-						$src_variants[] = $src_non_scaled;
+						$srcs_ranked[] = $src_non_scaled;
 					}
 					if ( $src_non_intermediate ) {
-						$src_variants[] = $src_non_intermediate;
+						$srcs_ranked[] = $src_non_intermediate;
 					}
 				} elseif ( $is_intermediate ) {
 					// E.g. image-100x200.jpg: add larger image.jpg.
 					if ( $src_non_intermediate ) {
-						$src_variants[] = $src_non_intermediate;
+						$srcs_ranked[] = $src_non_intermediate;
 					}
 				} elseif ( $is_scaled ) {
 					// image-scaled.jpg: add image.jpg.
 					if ( $src_non_scaled ) {
-						$src_variants[] = $src_non_scaled;
+						$srcs_ranked[] = $src_non_scaled;
 					}
 				}
 				// Add the "original" src (the one from post_content) to end of list.
-				$src_variants[] = $src;
+				$srcs_ranked[] = $src;
 
 				// Import the largest image into the Media Library (the first candidate), then just physically also download the rest of them in the same path.
 				$imported        = false;
 				$attachment_id   = null;
 				$imported_folder = null;
 				$src_local       = null;
-				foreach ( $src_variants as $src_variant ) {
+				foreach ( $srcs_ranked as $key_src_ranked => $src_ranked ) {
 
 					// Get the fully qualified path of the current candidate file (either from local folder, or from remote URL).
 					$img_import_path = null;
 					try {
-						$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_variant, $folder_local_images, $default_image_host_and_schema );
+						$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_images, $default_image_host_and_schema );
 					} catch ( \Exception $e ) {
 						if ( self::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED == $e->getCode() ) {
 							WP_CLI::warning( sprintf( '❗ Default download host+schema missing: %s', $e->getMessage() ) );
-							$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_variant ) );
+							$this->log( $this->get_log_name( self::LOG_FILE_ERR_DOWNLOADING_REFERENCE, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_ranked ) );
 						} else {
 							WP_CLI::warning( sprintf( '❗ Unknown error when getting image path: %s', $e->getMessage() ) );
-							$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_variant ) );
+							$this->log( $this->get_log_name( self::LOG_FILE_ERR_OTHER, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s', $post['ID'], $src_ranked ) );
 						}
 						// Try the following import candidate.
 						continue;
@@ -589,13 +589,13 @@ class Downloader {
 							$attachment_id = $attachments_logic->import_external_file( $img_import_path, $title_to_use, null, null, $alt_to_use, $post['ID'] );
 							if ( is_wp_error( $attachment_id ) ) {
 								WP_CLI::warning( sprintf( '❗ Error while importing image: %s', $attachment_id->get_error_message() ) );
-								$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $src_variant, $attachment_id->get_error_message() ) );
+								$this->log( $this->get_log_name( self::LOG_FILE_ERR_IMPORT_FAILED, $post_id_from, $post_id_to ), sprintf( 'ID %d src %s : %s', $post['ID'], $src_ranked, $attachment_id->get_error_message() ) );
 								continue;
 							}
 							$imported = true;
 							$this->log(
 								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-								sprintf( "Imported Post ID %d ; src '%s' ; attachment ID %s", $post['ID'], $src_variant, $attachment_id )
+								sprintf( "Imported Post ID %d ; src '%s' ; attachment ID %s", $post['ID'], $src_ranked, $attachment_id )
 							);
 							
 							// Get the target directory where the attachment was saved.
@@ -603,7 +603,7 @@ class Downloader {
 							$imported_folder = dirname( $target_path );
 							
 							// If this is the $src, note new the new URL.
-							if ( $src == $src_variant ) {
+							if ( $src == $src_ranked ) {
 								$src_local = wp_get_attachment_url( $attachment_id );
 							}
 						} else {
@@ -611,7 +611,7 @@ class Downloader {
 							$imported        = true;
 							$upload_dir      = wp_upload_dir();
 							$imported_folder = $upload_dir['path'];
-							WP_CLI::line( sprintf( "[Dry Run] Importing Post ID %d ; src '%s'", $post['ID'], $src_variant ) );
+							WP_CLI::line( sprintf( "[Dry Run] Importing Post ID %d ; src '%s'", $post['ID'], $src_ranked ) );
 						}
 					} else {
 						// Otherwise, if a candidate was already imported, just download the rest of them to the same folder as the imported attachment.
@@ -621,7 +621,7 @@ class Downloader {
 						// If the file already exists, skip download.
 						if ( $this->file_exists( $download_path ) ) {
 							// If this is the $src, and it already exists in the target folder, note new the new local URL.
-							if ( $src == $src_variant ) {
+							if ( $src == $src_ranked ) {
 								// Same folder (URL path) as imported $attachment_id, with $src's filename.
 								$src_local = dirname( wp_get_attachment_url( $attachment_id ) ) . '/' . basename( $src );
 							}
@@ -635,30 +635,30 @@ class Downloader {
 
 						// Download the rest of the files to the same folder where the attachment was imported.
 						if ( ! $dry_run ) {
-							$downloaded = $this->download_file_to_dir( $src_variant, $target_path );
+							$downloaded = $this->download_file_to_dir( $src_ranked, $target_path );
 							// Handle error.
 							if ( is_wp_error( $downloaded ) ) {
-								WP_CLI::warning( sprintf( "❗ Failed to download file '%s' to '%s', error: %s", $src_variant, $target_path, $downloaded->get_error_message() ) );
+								WP_CLI::warning( sprintf( "❗ Failed to download file '%s' to '%s', error: %s", $src_ranked, $target_path, $downloaded->get_error_message() ) );
 								$this->log(
 									$this->get_log_name( self::LOG_FILE_ERR_DOWNLOAD_FAILED, $post_id_from, $post_id_to ),
-									sprintf( "ID %d src '%s' : download_file_to_dir failed, error: %s", $post['ID'], $src_variant, $downloaded->get_error_message() )
+									sprintf( "ID %d src '%s' : download_file_to_dir failed, error: %s", $post['ID'], $src_ranked, $downloaded->get_error_message() )
 								);
 								continue;
 							}
 
 							// If this is the $src, and it has been downloaded, note new the new local URL.
-							if ( $src == $src_variant ) {
+							if ( $src == $src_ranked ) {
 								// Same folder (URL path) as imported $attachment_id, with $src's filename.
 								$src_local = dirname( wp_get_attachment_url( $attachment_id ) ) . '/' . basename( $src );
 							}
 							
 							$this->log(
 								$this->get_log_name( self::LOG_FILE_DOWNLOAD, $post_id_from, $post_id_to ),
-								sprintf( "Downloaded Post ID %d ; src '%s' ; saved to '%s'", $post['ID'], $src_variant, $downloaded )
+								sprintf( "Downloaded Post ID %d ; src '%s' ; saved to '%s'", $post['ID'], $src_ranked, $downloaded )
 							);
 						} else {
 							// Dry run.
-							WP_CLI::line( sprintf( "[Dry Run] Would download Post ID %d ; src '%s' ; to '%s'", $post['ID'], $src_variant, $download_path ) );
+							WP_CLI::line( sprintf( "[Dry Run] Would download Post ID %d ; src '%s' ; to '%s'", $post['ID'], $src_ranked, $download_path ) );
 						}
 					}
 				}
