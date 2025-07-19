@@ -2,9 +2,22 @@
 <ruleset name="WordPress Coding Standards for Plugins">
 	<description>Generally-applicable sniffs for WordPress plugins</description>
 
-	<rule ref="WordPress-Extra" />
-	<rule ref="WordPress-Docs" />
-	<rule ref="WordPress-VIP-Go" />
+	<rule ref="WordPress-Extra">
+		<exclude name="Generic.Functions.CallTimePassByReference" />
+	</rule>
+	<rule ref="WordPress-Docs">
+		<exclude name="Generic.Functions.CallTimePassByReference" />
+	</rule>
+	<rule ref="WordPress-VIP-Go">
+		<!-- Exclude JS-related sniffs that cause deprecation warnings -->
+		<exclude name="WordPressVIPMinimum.JS.Window" />
+		<exclude name="WordPressVIPMinimum.JS.DangerouslySetInnerHTML" />
+		<exclude name="WordPressVIPMinimum.JS.InnerHTML" />
+		<exclude name="WordPressVIPMinimum.JS.StrippingTags" />
+		<exclude name="WordPressVIPMinimum.JS.StringConcat" />
+		<exclude name="WordPressVIPMinimum.JS.HTMLExecutingFunctions" />
+		<exclude name="Generic.Functions.CallTimePassByReference" />
+	</rule>
 
 	<rule ref="WordPress">
 		<exclude name="Universal.Arrays.DisallowShortArraySyntax.Found" />
