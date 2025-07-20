@@ -861,7 +861,7 @@ class Downloader {
 				$this->log(
 					self::LOG_OUTPUTS['CLI_AND_FILE'],
 					LogLevel::DEBUG,
-					sprintf( "Adding large non-intermediate image '%s'", $src_non_intermediate ),
+					sprintf( "… adding large non-intermediate image '%s'", $src_non_intermediate ),
 					[
 						'post_id' => $post_id,
 						'src'     => $src,
@@ -879,7 +879,7 @@ class Downloader {
 				$this->log(
 					self::LOG_OUTPUTS['CLI_AND_FILE'],
 					LogLevel::DEBUG,
-					sprintf( "Adding large non-scaled image '%s'", $src_non_scaled ),
+					sprintf( "… adding large non-scaled image '%s'", $src_non_scaled ),
 					[
 						'post_id' => $post_id,
 						'src'     => $src,
