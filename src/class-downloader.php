@@ -31,13 +31,13 @@ class Downloader {
 	public const WP_IMAGE_EXTENSIONS = [ 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'svg' ];
 
 	/**
-	 * Regex pattern for matching intermediate image sizes, with a placeholder for extensions.
+	 * Regex pattern for matching intermediate image sizes, with a sprintf placeholder for extensions.
 	 * E.g. for `https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg` this matches `300`, `244` and `jpg`.
 	 */
 	private const INTERMEDIATE_IMG_PATTERN = '/-(\\d+)x(\\d+)\\.(%s)$/i';
 
 	/**
-	 * Whether logging is enabled.
+	 * Whether logging is enabled. Useful for testing environment -- if disabled the loggers are NullLogger instances.
 	 * 
 	 * @var bool Whether logging is enabled.
 	 */
@@ -1226,7 +1226,7 @@ class Downloader {
 			$extension = substr( $mime_type, strlen( $mime_img_prefix ), strpos( $mime_type, ';' ) - strlen( $mime_img_prefix ) );
 		}
 
-		return $extension ? $extension : null;
+		return $extension ?? null;
 	}
 
 	/**
@@ -1240,6 +1240,13 @@ class Downloader {
 
 	/**
 	 * Log to one or both loggers based on parameters.
+	 * 
+	 * Basic CLI colors are:
+	 *   - LogLevel::DEBUG -- no color
+	 *   - LogLevel::INFO -- green
+	 *   - LogLevel::WARNING -- orange
+	 *   - LogLevel::ERROR -- red
+	 *   and more levels and colors exist, @see \Bramus\Monolog\Formatter\ColoredLineFormatter::getColorScheme().
 	 *
 	 * @param string $output   Log output, allowed values self::LOG_OUTPUTS.
 	 * @param string $level    \Psr\Log\LogLevel: debug, info, notice, warning, error, critical, alert, emergency.
@@ -1247,15 +1254,18 @@ class Downloader {
 	 * @param array  $context  Log context.
 	 */
 	private function log( string $output, string $level, string $message, array $context = [] ): void {
+		// Is level "basic" -- DEBUG, INFO or NOTICE? Will not output these levels in CLI.
+		$is_level_basic = in_array( $level, [ LogLevel::NOTICE, LogLevel::INFO, LogLevel::DEBUG ] );
+
 		switch ( $output ) {
 			case 'cli':
-				$this->logger_cli->$level( $message, $context );
+				$this->logger_cli->$level( ( $is_level_basic ? '' : $level . ': ' ) . $message, $context );
 				break;
 			case 'file':
-				$this->logger_file->$level( $message, $context );
+				$this->logger_file->$level( $message, $context );   
 				break;
 			case 'cli_and_file':
-				$this->logger_cli->$level( $message, $context );    
+				$this->logger_cli->$level( ( $is_level_basic ? '' : $level . ': ' ) . $message, $context );
 				$this->logger_file->$level( $message, $context );
 				break;
 		}
@@ -1264,45 +1274,54 @@ class Downloader {
 	/**
 	 * Sets up the loggers.
 	 *
-	 * @param string|null $logger_slug  CLI and file logger slug.
+	 * @param string|null $logger_slug        CLI and file logger slug.
+	 * @param bool        $log_init_timestamp Whether to log the timestamp of the start of the loggers.
 	 */
-	protected function init_loggers( ?string $logger_slug = null ): void {
-		// If logging is disabled, we already have NullLogger instances.
+	protected function init_loggers( ?string $logger_slug = null, bool $log_init_timestamp = true ): void {
+		// If logging is disabled, NullLogger have been set instances.
 		if ( false === $this->enable_logging ) {
 			return;
 		}
 
-		// File logger.
-		if ( ! is_null( $logger_slug ) ) {
-			$formatter_file = new LineFormatter(
-				'[%datetime%] %level_name%: %message% %context%' . PHP_EOL,
-				'Y-m-d H:i:s.u',
-				true,
-				true
-			);
-			$logger_file    = new Logger( $logger_slug . '_file' );
-			$handler_file   = new StreamHandler( $logger_slug . '.log' );
-			$handler_file->setFormatter( $formatter_file );
-			$logger_file->pushHandler( $handler_file );
-
-			$this->logger_file = $logger_file;
+		// If slug is not provided, do not initialize the loggers.
+		if ( is_null( $logger_slug ) ) {
+			return;
 		}
 
-		// CLI logger.
-		if ( ! is_null( $logger_slug ) ) {
-			$formatter_cli = new ColoredLineFormatter(
-				null,
-				'[%datetime%] %level_name%: %message% %context%' . PHP_EOL,
-				'Y-m-d H:i:s.u',
-				true,
-				true
-			);
-			$logger_cli    = new Logger( $logger_slug . '_cli' );
-			$handler_cli   = new StreamHandler( 'php://stdout' );
-			$handler_cli->setFormatter( $formatter_cli );
-			$logger_cli->pushHandler( $handler_cli );
+		/**
+		 * File logger uses no color and full timestamp.
+		 */
+		$formatter_file = new LineFormatter(
+			'[%datetime%] %level_name%: %message% %context%' . PHP_EOL,
+			'Y-m-d H:i:s.u',
+			true,
+			true
+		);
+		$logger_file    = new Logger( $logger_slug . '_file' );
+		$handler_file   = new StreamHandler( $logger_slug . '.log' );
+		$handler_file->setFormatter( $formatter_file );
+		$logger_file->pushHandler( $handler_file );
+		$this->logger_file = $logger_file;
 
-			$this->logger_cli = $logger_cli;
+		/**
+		 * CLI logger uses color, does not output a timestamp, and does not include level_name.
+		 */
+		$formatter_cli = new ColoredLineFormatter(
+			null,
+			'%message% %context%' . PHP_EOL,
+			'Y-m-d H:i:s.u',
+			true,
+			true
+		);
+		$logger_cli    = new Logger( $logger_slug . '_cli' );
+		$handler_cli   = new StreamHandler( 'php://stdout' );
+		$handler_cli->setFormatter( $formatter_cli );
+		$logger_cli->pushHandler( $handler_cli );
+		$this->logger_cli = $logger_cli;
+
+		// If $log_init_timestamp is set, write an init logging message with a timestampto both loggers.
+		if ( $log_init_timestamp ) {
+			$this->log( 'cli_and_file', LogLevel::DEBUG, '[Init logging at ' . gmdate( 'Y-m-d H:i:s.u' ) . ']' );
 		}
 	}
 }
