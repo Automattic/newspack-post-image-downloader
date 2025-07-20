@@ -8,10 +8,10 @@
 namespace NewspackPostImageDownloaderTest;
 
 use WP_UnitTestCase;
+use WP_Error;
 use NewspackPostImageDownloader\Downloader;
 use RuntimeException;
 use PHPUnit\Framework\MockObject\MockObject;
-use Yoast\PHPUnitPolyfills\TestCases\TestCase;
 
 /**
  * Sample test case.
@@ -31,7 +31,7 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * @throws RuntimeException In case a temp dir could not have been created.
 	 */
 	protected function setUp(): void {
-		$this->downloader = new Downloader();
+		$this->downloader = new Downloader( false );
 	}
 
 	/**
@@ -78,19 +78,16 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Relative reference to host root. But an exception gets thrown if the $default_image_host_and_schema param is not provided.
+	 * Relative reference to host root. But a WP_Error gets returned if the $default_image_host_and_schema param is not provided.
 	 */
-	public function test_relative_ref_to_root_src_no_local_images_folder_throws_exception() {
-		$this->expectException( RuntimeException::class );
-		$this->expectExceptionCode( Downloader::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED );
-
+	public function test_relative_ref_to_root_src_no_local_images_folder_returns_wp_error() {
 		$src                           = '/path/img.jpg';
 		$folder_local_images           = null;
 		$default_image_host_and_schema = null;
 
 		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
 
-		$this->assertSame( $src, $img_import_path );
+		$this->assertInstanceOf( WP_Error::class, $img_import_path );
 	}
 
 	/**
@@ -124,19 +121,16 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Relative reference src. But an exception gets thrown if the $default_image_host_and_schema param is not provided.
+	 * Relative reference src. But a WP_Error gets returned if the $default_image_host_and_schema param is not provided.
 	 */
-	public function test_relative_ref_src_no_local_images_folder_throws_exception() {
-		$this->expectException( RuntimeException::class );
-		$this->expectExceptionCode( Downloader::EXCEPTION_CODE_NO_DEFAULT_HOST_PROVIDED );
-
+	public function test_relative_ref_src_no_local_images_folder_returns_wp_error() {
 		$src                           = 'path/img.jpg';
 		$folder_local_images           = null;
 		$default_image_host_and_schema = null;
 
 		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
 
-		$this->assertSame( $src, $img_import_path );
+		$this->assertInstanceOf( WP_Error::class, $img_import_path );
 	}
 
 	/**
@@ -241,7 +235,7 @@ class Test_Downloader extends WP_UnitTestCase {
 	 */
 	private function create_downloader_partial_mock_with_file_exists_method( $local_file, $response ) {
 		$partial_mock = $this->getMockBuilder( Downloader::class )
-							->setMethods( array( 'file_exists' ) )
+							->setMethods( [ 'file_exists' ] )
 							->getMock();
 
 		$partial_mock->expects( $this->any() )
@@ -275,53 +269,53 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * @return array[]
 	 */
 	public function providerUriHostMatching() {
-		return array(
-			array(
+		return [
+			[
 				'https://host1.com/path/img.jpg',
-				array( 'host1.com' ),
+				[ 'host1.com' ],
 				true,
-			),
-			array(
+			],
+			[
 				'    https://host1.com/path/with-spaces.jpg    ',
-				array( 'host1.com' ),
+				[ 'host1.com' ],
 				true,
-			),
-			array(
+			],
+			[
 				'https://host1.com/path/img.jpg',
-				array( 'host2.com' ),
+				[ 'host2.com' ],
 				false,
-			),
-			array(
+			],
+			[
 				'https://host1.com/path/img.jpg',
-				array( '*.host1.com' ),
+				[ '*.host1.com' ],
 				false,
-			),
-			array(
+			],
+			[
 				'https://host1.com/path/img.jpg',
-				array( 'host1.*' ),
+				[ 'host1.*' ],
 				true,
-			),
-			array(
+			],
+			[
 				'https://host1.com/path/img.jpg',
-				array( '*.host1.*' ),
+				[ '*.host1.*' ],
 				false,
-			),
-			array(
+			],
+			[
 				'https://www.host1.com/path/img.jpg',
-				array( '*.host1.com' ),
+				[ '*.host1.com' ],
 				true,
-			),
-			array(
+			],
+			[
 				'https://www.host1.com/path/img.jpg',
-				array( 'www.host1.*' ),
+				[ 'www.host1.*' ],
 				true,
-			),
-			array(
+			],
+			[
 				'https://www.host1.com/path/img.jpg',
-				array( 'www.host2.*' ),
+				[ 'www.host2.*' ],
 				false,
-			),
-		);
+			],
+		];
 	}
 
 	/**
@@ -330,43 +324,43 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * @return array[]
 	 */
 	public function providerGetNonIntermediateImgUrl() {
-		return array(
+		return [
 			// E.g. 1. intermediate image: returns non-intermediate.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
-			),
+			],
 			// E.g. 3. non-intermediate image: returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
 				null,
-			),
+			],
 			// E.g. 4. scaled image (not intermediate): returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 				null,
-			),
+			],
 			// E.g. 5. image with query params: returns non-intermediate without query.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar',
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
-			),
+			],
 			// E.g. 6. image with spaces and query params: returns non-intermediate without query and trimmed.
-			array(
+			[
 				'   https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar   ',
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
-			),
+			],
 			// E.g. 7. SVG image (should not match intermediate pattern): returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
 				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
-			),
+			],
 			// E.g. 8. non-intermediate SVG: returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
 				null,
-			),
-		);
+			],
+		];
 	}
 
 	/**
@@ -375,53 +369,53 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * @return array[]
 	 */
 	public function providerGetNonScaledImgUrl() {
-		return array(
+		return [
 			// E.g. 1. scaled image: returns non-scaled.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
-			),
+			],
 			// E.g. 2. non-scaled image: returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy.jpg',
 				null,
-			),
+			],
 			// E.g. 3. scaled image with query params: returns non-scaled without query.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar',
 				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
-			),
+			],
 			// E.g. 4. scaled image with spaces and query params: returns non-scaled without query and trimmed.
-			array(
+			[
 				'   https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar   ',
 				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
-			),
+			],
 			// E.g. 5. scaled PNG image: returns non-scaled PNG.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/image-scaled.png',
 				'https://www.mysite.com/wp-content/uploads/2025/01/image.png',
-			),
+			],
 			// E.g. 6. scaled WebP image: returns non-scaled WebP.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/image-scaled.webp',
 				'https://www.mysite.com/wp-content/uploads/2025/01/image.webp',
-			),
+			],
 			// E.g. 7. scaled SVG image: returns non-scaled SVG.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/vector-scaled.svg',
 				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
-			),
+			],
 			// E.g. 8. non-scaled SVG: returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
 				null,
-			),
+			],
 			// E.g. 9. intermediate image (not scaled): returns null.
-			array(
+			[
 				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				null,
-			),
-		);
+			],
+		];
 	}
 
 	/**
