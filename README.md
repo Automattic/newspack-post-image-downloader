@@ -24,6 +24,18 @@ There is a helper command called `scan-existing-images-hostnames` which lists al
 
 Also optional. Alternatively, you can specify hosts not to download images from, and the plugin will download images from all the hosts except these, e.g. `*.google.*` (the `--exclude-hosts` parameter). Wildcards are also supported to use all domain extensions and/or subdomains.
 
+### -- full-size image downloading
+
+Unless the optional flag is set `--do-not-download-large-sizes`, the `import-images` command will automatically attempt to import the large-sized version of the image (non-scaled and non-intermediate).
+
+This ensures that the imported Media Library attachment image is of the highest available quality. Then the smaller scaled/intermediate image also gets downloaded side-by-side to the imported larger attachment object. The effect is not seen in post_content, as the same size of image will be displayed, but the Media Library does get the highest available image quality.
+
+E.g.1. if an intermediate image is found in post_content for download https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will actually import the non-intermediate image into the Media Library (without the `-300x244` suffix) https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg , and additionally just download the intermediate one next to it.
+
+E.g.2. or if a scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg is used, the command will try and import the non-scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg , and still seamlessly download and use the scaled version in post_content.
+
+See more about image sizes in [WordPress docs](https://make.wordpress.org/core/2019/10/09/introducing-handling-of-big-images-in-wordpress-5-3/).
+
 ### -- parallel downloading
 
 To speed up downloading, you could even run several commands in parallel by splitting and grouping your Post IDs into several batches, and then running the command with different `--post-id-from` and `--post-id-to` ID ranges, or with a specific `--post-ids-csv`.
