@@ -8,23 +8,26 @@
       "tests/"
     ]
   },
+  "repositories": [
+    {
+        "type": "vcs",
+        "url": "https://github.com/Automattic/newspack-migration-tools.git"
+    }
+  ],
   "require": {
     "composer/installers": "^2.0",
     "brainmaestro/composer-git-hooks": "^2.6",
     "symfony/dom-crawler": "^5.2",
-    "symfony/css-selector": "^5.2"
+    "symfony/css-selector": "^5.2",
+    "automattic/newspack-migration-tools": "dev-trunk"
   },
   "require-dev": {
-    "xwp/wp-dev-lib": "^1.5",
     "automattic/vipwpcs": "^3.0",
     "wp-coding-standards/wpcs": "^3.0",
-    "dealerdirect/phpcodesniffer-composer-installer": "*",
-    "phpcompatibility/phpcompatibility-wp": "*"
-  },
-  "extra": {
-    "hooks": {
-      "pre-commit": "./vendor/xwp/wp-dev-lib/scripts/pre-commit"
-    }
+    "dealerdirect/phpcodesniffer-composer-installer": "^0.7.0",
+    "phpcompatibility/phpcompatibility-wp": "^2.1",
+    "yoast/phpunit-polyfills": "^1.0",
+    "phpunit/phpunit": "9.*"
   },
   "archive": {
     "exclude": [
@@ -49,12 +52,6 @@
     ]
   },
   "scripts": {
-    "post-install-cmd": [
-      "vendor/bin/cghooks add --no-lock"
-    ],
-    "post-update-cmd": [
-      "vendor/bin/cghooks update"
-    ],
     "release": [
       "composer install --no-dev --optimize-autoloader",
       "composer archive --format=zip --dir=release --file=newspack-post-image-downloader"

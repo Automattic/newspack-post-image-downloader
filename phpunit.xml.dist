@@ -8,7 +8,9 @@
 	convertWarningsToExceptions="true"
 	>
 	<testsuites>
-		<testsuite>
+		<testsuite
+			name="Newspack Post Image Downloader Unit Tests"
+		>
       <directory prefix="class-test-" suffix=".php">./tests/unit/</directory>
 		</testsuite>
 	</testsuites>

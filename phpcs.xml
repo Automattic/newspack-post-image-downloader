@@ -1,23 +1,41 @@
 <?xml version="1.0"?>
 <ruleset name="WordPress Coding Standards for Plugins">
-  <description>Generally-applicable sniffs for WordPress plugins</description>
+	<description>Generally-applicable sniffs for WordPress plugins</description>
 
-  <rule ref="WordPress-Extra" />
-  <rule ref="WordPress-Docs" />
-  <rule ref="WordPress-VIP-Go" />
+	<rule ref="WordPress-Extra">
+		<exclude name="Generic.Functions.CallTimePassByReference" />
+	</rule>
+	<rule ref="WordPress-Docs">
+		<exclude name="Generic.Functions.CallTimePassByReference" />
+	</rule>
+	<rule ref="WordPress-VIP-Go">
+		<!-- Exclude JS-related sniffs that cause deprecation warnings -->
+		<exclude name="WordPressVIPMinimum.JS.Window" />
+		<exclude name="WordPressVIPMinimum.JS.DangerouslySetInnerHTML" />
+		<exclude name="WordPressVIPMinimum.JS.InnerHTML" />
+		<exclude name="WordPressVIPMinimum.JS.StrippingTags" />
+		<exclude name="WordPressVIPMinimum.JS.StringConcat" />
+		<exclude name="WordPressVIPMinimum.JS.HTMLExecutingFunctions" />
+		<exclude name="Generic.Functions.CallTimePassByReference" />
+	</rule>
 
-  <rule ref="PHPCompatibilityWP"/>
-  <config name="testVersion" value="7.0-"/>
+	<rule ref="WordPress">
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax.Found" />
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase" />
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName" />
+		<exclude name="Squiz.Commenting.ClassComment.Missing" />
+	</rule>
 
-  <arg name="extensions" value="php"/>
+	<rule ref="PHPCompatibilityWP"/>
+	<config name="testVersion" value="8.3"/>
 
-  <!-- Show sniff codes in all reports -->
-  <arg value="s"/>
+	<arg name="extensions" value="php"/>
 
-  <!-- Allow invoking just `phpcs` on command line without assuming STDIN for file input. -->
-  <file>.</file>
+	<!-- Show sniff codes in all reports -->
+	<arg value="s"/>
 
-  <exclude-pattern>*/node_modules/*</exclude-pattern>
-  <exclude-pattern>*/vendor/*</exclude-pattern>
-  <exclude-pattern>*/assets/dist/*</exclude-pattern>
+	<!-- Allow invoking just `phpcs` on command line without assuming STDIN for file input. -->
+	<file>src</file>
+	<file>tests</file>
+
 </ruleset>
