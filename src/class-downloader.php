@@ -433,8 +433,8 @@ class Downloader {
 			$post_content_updated = $post['post_content'];
 			foreach ( $img_data as $img_datum ) {
 				$src                  = trim( $img_datum['src'] );
-				$src_non_intermediate = trim( $img_datum['src_non_intermediate'] );
-				$src_non_scaled       = trim( $img_datum['src_non_scaled'] );
+				$src_non_intermediate = isset( $img_datum['src_non_intermediate'] ) && ! empty( $img_datum['src_non_intermediate'] ) ?trim( $img_datum['src_non_intermediate'] ) : null;
+				$src_non_scaled       = isset( $img_datum['src_non_scaled'] ) && ! empty( $img_datum['src_non_scaled'] ) ? trim( $img_datum['src_non_scaled'] ) : null;
 				$title                = trim( $img_datum['title'] );
 				$alt                  = trim( $img_datum['alt'] );
 
