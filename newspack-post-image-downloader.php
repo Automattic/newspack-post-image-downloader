@@ -5,7 +5,7 @@
  * Plugin URI:  https://newspack.pub/
  * Author:      Automattic
  * Author URI:  https://newspack.pub/
- * Version:     1.2.0
+ * Version:     1.2.1
  *
  * @package  Newspack_Post_Image_Downloader
  */
