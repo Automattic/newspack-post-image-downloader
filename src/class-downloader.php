@@ -10,6 +10,7 @@ namespace NewspackPostImageDownloader;
 use WP_CLI;
 use WP_Error;
 use Newspack\MigrationTools\Logic\Attachments;
+use Newspack\MigrationTools\Hooks\MemoryCleanupHook;
 use Symfony\Component\DomCrawler\Crawler;
 use Psr\Log\LogLevel;
 use Psr\Log\NullLogger;
@@ -206,6 +207,13 @@ class Downloader {
 						'repeating'   => false,
 					],
 					[
+						'type'        => 'flag',
+						'name'        => 'do-not-download-relative-urls',
+						'description' => 'Unless this flag is set, the command will automatically download relative image URLs by prepending the --default-image-host-and-schema to them.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
 						'type'        => 'assoc',
 						'name'        => 'exclude-hosts',
 						'description' => 'CSV, list of hosts to exclude downloading from. Can use a wildcard, e.g. to cover a host and all its subdomains, use these two values `google.com,*.google.com`, or for multiple domain extensions use `www.google.*`, or can even use `*.google.*` for all subdomains and all domain extensions.',
@@ -287,20 +295,40 @@ class Downloader {
 			exit;
 		}
 		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
-			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both post ID ranges are required.' );
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both --post-id-from and --post-id-to are required when using ranges.' );
 			exit;
 		}
 
 		$time_start = microtime( true );
-		$posts      = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		$post_ids   = $this->get_post_ids( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		if ( empty( $post_ids ) ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, 'No Posts found... 🤔' );
+			exit;
+		}
+		MemoryCleanupHook::cleanup();
 
-		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( 'Checking image hosts in %d posts...', count( $posts ) ) );
-		$img_hostnames = $this->get_all_image_hostnames_from_posts( $posts );
+		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( 'Checking image hosts in %d posts...', count( $post_ids ) ) );
+		$img_hostnames_post_ids = [];
+		foreach ( $post_ids as $key_post_id => $post_id ) {
+			MemoryCleanupHook::cleanup( 0, $key_post_id, 50 );
+
+			$post_content = $this->get_post_content( $post_id );
+			if ( ! $post_content ) {
+				$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::WARNING, sprintf( '⚠️ Could not fetch content for post ID %d', $post_id ) );
+				continue;
+			}
+			$post_img_hostnames = $this->get_all_image_hostnames_from_post_content( $post_content );
+
+			// Add the post ID to the list of post IDs for each image hostname.
+			foreach ( $post_img_hostnames as $img_hostname ) {
+				$img_hostnames_post_ids[ $img_hostname ][] = $post_id;
+			}
+		}
 
 		// Tada!
-		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total image hosts%s', count( $img_hostnames ), ( count( $img_hostnames ) > 0 ? ':' : '.' ) ) );
-		if ( count( $img_hostnames ) ) {
-			foreach ( $img_hostnames as $img_hostname => $post_ids ) {
+		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total image hosts%s', count( $img_hostnames_post_ids ), ( count( $img_hostnames_post_ids ) > 0 ? ':' : '.' ) ) );
+		if ( count( $img_hostnames_post_ids ) ) {
+			foreach ( $img_hostnames_post_ids as $img_hostname => $post_ids ) {
 				$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( '- %s%s', $img_hostname, $list_all_post_ids ? ' -- in post IDs: ' . implode( ',', $post_ids ) : '' ) );
 			}
 		}
@@ -328,33 +356,51 @@ class Downloader {
 			exit;
 		}
 		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
-			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both post ID ranges are required.' );
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both --post-id-from and --post-id-to are required when using ranges.' );
 			exit;
 		}
 
 		$time_start = microtime( true );
-		$posts      = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
 		
-		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( 'Getting all URLs from %d posts...', count( $posts ) ) );
-		$urls = $this->get_all_urls_from_posts( $posts );
-
-		// Tada!
+		// Prepare the log file.
 		$log_file = 'urls_in_posts.csv';
 		if ( $this->file_exists( $log_file ) ) {
 			unlink( $log_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 		}
-		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total URLs%s', count( $urls ), ( count( $urls ) > 0 ? ' and saved them to dedicated log file`' . $log_file . '`' : '.' ) ) );
-		if ( count( $urls ) > 0 ) {
-			$log_file_handle = fopen( $log_file, 'w' ); // phpcs:ignore -- WordPress.WP.AlternativeFunctions.file_system_operations_fopen.
-			fputcsv( $log_file_handle, [ 'post_id', 'url' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
-			foreach ( $urls as $post_id => $urls_post ) {
-				foreach ( $urls_post as $url ) {
-					fputcsv( $log_file_handle, [ $post_id, $url ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
-				}
+		$log_file_handle = fopen( $log_file, 'w' ); // phpcs:ignore -- WordPress.WP.AlternativeFunctions.file_system_operations_fopen.
+		fputcsv( $log_file_handle, [ 'post_id', 'url' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+
+		$post_ids = $this->get_post_ids( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		if ( empty( $post_ids ) ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, 'No Posts found... 🤔' );
+			exit;
+		}
+		MemoryCleanupHook::cleanup();
+
+		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( 'Getting all URLs from %d posts...', count( $post_ids ) ) );
+		foreach ( $post_ids as $key_post_id => $post_id ) {
+			MemoryCleanupHook::cleanup( 0, $key_post_id, 50 );
+
+			$post_content = $this->get_post_content( $post_id );
+			if ( ! $post_content ) {
+				$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::WARNING, sprintf( '⚠️ Could not fetch content for post ID %d', $post_id ) );
+				continue;
+			}
+
+			$urls = $this->get_all_urls( $post_content );
+			if ( empty( $urls ) ) {
+				continue;
+			}
+
+			foreach ( $urls as $url ) {
+				fputcsv( $log_file_handle, [ $post_id, $url ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 			}
 		}
 
-		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
+		fclose( $log_file_handle );
+
+		// Tada!
+		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( 'Done in %d mins! See %s for list of URLs. 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ), $log_file ) );
 	}
 
 	/**
@@ -367,6 +413,7 @@ class Downloader {
 	public function cmd_import_images( $args, $assoc_args ) {
 		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
 		$do_not_download_large_sizes   = isset( $assoc_args['do-not-download-large-sizes'] ) ? true : false;
+		$do_not_download_relative_urls = isset( $assoc_args['do-not-download-relative-urls'] ) ? true : false;
 		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : [ 'post', 'page' ];
 		$post_statuses                 = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : [ 'publish' ];
 		$post_ids_specific             = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
@@ -383,7 +430,7 @@ class Downloader {
 			exit;
 		}
 		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
-			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both `--post-id-from` and `--post-id-to` ranges are required.' );
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both --post-id-from and --post-id-to are required when using ranges.' );
 			exit;
 		}
 		if ( $only_download_from_hosts && $hosts_excluded ) {
@@ -397,15 +444,24 @@ class Downloader {
 		$attachments_logic = new Attachments();
 
 		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::DEBUG, 'Fetching Posts...' );
-		$posts = $this->get_posts_ids_and_contents( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
-		if ( empty( $posts ) ) {
+		$post_ids = $this->get_post_ids( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		if ( empty( $post_ids ) ) {
 			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, 'No Posts found... 🤔' );
 			exit;
 		}
+		MemoryCleanupHook::cleanup();
 
-		foreach ( $posts as $key_post => $post ) {
+		foreach ( $post_ids as $key_post => $post_id ) {
+			$post_content = $this->get_post_content( $post_id );
+			if ( empty( $post_content ) ) {
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, sprintf( 'No post content in post ID %d, skipping...', $post_id ) );
+				continue;
+			}
+
+			MemoryCleanupHook::cleanup( 0, $key_post, 50 );
+
 			// Extract attributes from all the `<img>`s.
-			$img_data = ( new Crawler( $post['post_content'] ) )->filterXpath( '//img' )->extract( [ 'src', 'title', 'alt' ] );
+			$img_data = ( new Crawler( $post_content ) )->filterXpath( '//img' )->extract( [ 'src', 'title', 'alt' ] );
 			
 			// Convert numeric array to associative array for consistent access.
 			$img_data = array_map(
@@ -419,21 +475,21 @@ class Downloader {
 				$img_data
 			);
 
-			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( '👉 (%d/%d) post ID %d, found %d images...', $key_post + 1, count( $posts ), $post['ID'], count( $img_data ) ) );
+			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( '👉 (%d/%d) post ID %d, found %d images...', $key_post + 1, count( $post_ids ), $post_id, count( $img_data ) ) );
 			if ( empty( $img_data ) ) {
 				continue;
 			}
 
 			// Extend the $img_data array with the full sized image URLs to be downloaded (non-intermediate and non-scaled versions of the image).
 			if ( ! $do_not_download_large_sizes ) {
-				$img_data = $this->include_full_sized_images_in_img_data( $img_data, $post['ID'] );
+				$img_data = $this->include_full_sized_images_in_img_data( $img_data, $post_id );
 			}
 
 			// Download images in post content.
-			$post_content_updated = $post['post_content'];
+			$post_content_updated = $post_content;
 			foreach ( $img_data as $img_datum ) {
 				$src                  = trim( $img_datum['src'] );
-				$src_non_intermediate = isset( $img_datum['src_non_intermediate'] ) && ! empty( $img_datum['src_non_intermediate'] ) ?trim( $img_datum['src_non_intermediate'] ) : null;
+				$src_non_intermediate = isset( $img_datum['src_non_intermediate'] ) && ( ! empty( $img_datum['src_non_intermediate'] ) ? trim( $img_datum['src_non_intermediate'] ) : null );
 				$src_non_scaled       = isset( $img_datum['src_non_scaled'] ) && ! empty( $img_datum['src_non_scaled'] ) ? trim( $img_datum['src_non_scaled'] ) : null;
 				$title                = trim( $img_datum['title'] );
 				$alt                  = trim( $img_datum['alt'] );
@@ -441,26 +497,46 @@ class Downloader {
 				// Boolean flags for simpler logic.
 				$is_scaled       = ! empty( $src_non_scaled );
 				$is_intermediate = ! empty( $src_non_intermediate );
+				$is_relative     = 0 === strpos( $src, '/' );
+				$is_absolute     = 0 === strpos( strtolower( $src ), 'http' );
 
-				// Basic URL validation.
-				if ( ! filter_var( $src, FILTER_VALIDATE_URL ) ) {
-					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Invalid image URL '%s'", $src ), [ 'post_id' => $post['ID'] ] );
+				// Basic URL validation -- either relative, or absolute and valid.
+				$is_url_valid = $is_relative || ( $is_absolute && filter_var( $src, FILTER_VALIDATE_URL ) );
+				if ( ! $is_url_valid ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Invalid URL type '%s'", $src ), [ 'post_id' => $post_id ] );
+					continue;
+				}
+
+				// Skip relative URLs if the flag is set.
+				if ( $is_relative && $do_not_download_relative_urls ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, relative URL '%s'", $src ), [ 'post_id' => $post_id ] );
 					continue;
 				}
 				// Skip if $src was already used/downloaded and replaced.
 				if ( false === strpos( $post_content_updated, $src ) && false === strpos( $post_content_updated, esc_attr( $src ) ) ) {
-					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, src already downloaded '%s'", $src ), [ 'post_id' => $post['ID'] ] );
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, src already downloaded '%s'", $src ), [ 'post_id' => $post_id ] );
 					continue;
 				}
+
 				// Filter `src` by host.
 				if ( $only_download_from_hosts ) {
-					if ( ! $this->does_uri_match_host( $src, $only_download_from_hosts ) ) {
-						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $src ), [ 'post_id' => $post['ID'] ] );
+					// Skip if relative URL host (--default-image-host-and-schema) does not match $only_download_from_hosts.
+					if ( $is_relative && ! $this->does_uri_match_host( $default_image_host_and_schema, $only_download_from_hosts ) ) {
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping relative URL, off target host '%s'", $src ), [ 'post_id' => $post_id ] );
+						continue;
+					} elseif ( $is_absolute && ! $this->does_uri_match_host( $src, $only_download_from_hosts ) ) {
+						// Skip if absolute URL host does not match $only_download_from_hosts.
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $src ), [ 'post_id' => $post_id ] );
 						continue;
 					}
 				} elseif ( $hosts_excluded ) {
-					if ( $this->does_uri_match_host( $src, $hosts_excluded ) ) {
-						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, excluded host '%s'", $src ), [ 'post_id' => $post['ID'] ] );
+					// Skip if relative URL host matches $hosts_excluded.
+					if ( $is_relative && $this->does_uri_match_host( $default_image_host_and_schema, $hosts_excluded ) ) {
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping relative URL, excluded host '%s'", $src ), [ 'post_id' => $post_id ] );
+						continue;
+					} elseif ( $is_absolute && $this->does_uri_match_host( $src, $hosts_excluded ) ) {
+						// Skip if absolute URL host matches $hosts_excluded.
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, excluded host '%s'", $src ), [ 'post_id' => $post_id ] );
 						continue;
 					}
 				}
@@ -503,7 +579,7 @@ class Downloader {
 							LogLevel::ERROR,
 							sprintf( '❗ Error getting image path: %s', $img_import_path->get_error_message() ),
 							[
-								'post_id' => $post['ID'],
+								'post_id' => $post_id,
 								'src'     => $src_ranked,
 							] 
 						);
@@ -524,14 +600,14 @@ class Downloader {
 						// Import the image into the Media Library.
 						$attachment_id = null;
 						if ( ! $dry_run ) {
-							$attachment_id = $attachments_logic->import_external_file( $img_import_path, $title_to_use, null, null, $alt_to_use, $post['ID'] );
+							$attachment_id = $attachments_logic->import_external_file( $img_import_path, $title_to_use, null, null, $alt_to_use, $post_id );
 							if ( is_wp_error( $attachment_id ) ) {
 								$this->log(
 									self::LOG_OUTPUTS['CLI_AND_FILE'],
 									LogLevel::ERROR,
 									sprintf( "❗ Error while importing '%s': '%s'", $img_import_path, $attachment_id->get_error_message() ),
 									[
-										'post_id' => $post['ID'],
+										'post_id' => $post_id,
 										'src'     => $src_ranked,
 									] 
 								);
@@ -543,7 +619,7 @@ class Downloader {
 								LogLevel::INFO,
 								sprintf( "✓ Imported '%s' as attachment ID %d", $img_import_path, $attachment_id ),
 								[
-									'post_id' => $post['ID'],
+									'post_id' => $post_id,
 									'src'     => $src_ranked,
 								] 
 							);
@@ -566,7 +642,7 @@ class Downloader {
 								LogLevel::INFO,
 								sprintf( "[Dry Run] Imported src '%s' as attachment ID '%d'", $src_ranked, is_int( $attachment_id ) ? $attachment_id : 'N/A' ),
 								[
-									'post_id' => $post['ID'],
+									'post_id' => $post_id,
 									'src'     => $src_ranked,
 								] 
 							);
@@ -589,7 +665,7 @@ class Downloader {
 								LogLevel::DEBUG,
 								sprintf( "✖ skipping, file '%s' already exists '%s'", $img_import_path, $download_path ),
 								[
-									'post_id' => $post['ID'],
+									'post_id' => $post_id,
 									'src'     => $src_ranked,
 								] 
 							);
@@ -606,7 +682,7 @@ class Downloader {
 									LogLevel::ERROR,
 									sprintf( "❗ Failed to download '%s' to '%s': '%s'", $src_ranked, $target_path, $downloaded->get_error_message() ),
 									[
-										'post_id' => $post['ID'],
+										'post_id' => $post_id,
 										'src'     => $src_ranked,
 									] 
 								);
@@ -624,7 +700,7 @@ class Downloader {
 								LogLevel::INFO,
 								sprintf( "✓ Downloaded '%s' to '%s'", $src_ranked, $downloaded ),
 								[
-									'post_id' => $post['ID'],
+									'post_id' => $post_id,
 									'src'     => $src_ranked,
 								] 
 							);
@@ -635,7 +711,7 @@ class Downloader {
 								LogLevel::INFO,
 								sprintf( "[Dry Run] Downloaded src '%s' to '%s'", $src_ranked, $download_path ),
 								[
-									'post_id' => $post['ID'],
+									'post_id' => $post_id,
 									'src'     => $src_ranked,
 								] 
 							);
@@ -650,7 +726,7 @@ class Downloader {
 						LogLevel::DEBUG,
 						sprintf( "Replacing in post_content from src '%s' to new '%s'", $src, $src_local ),
 						[
-							'post_id' => $post['ID'],
+							'post_id' => $post_id,
 							'src'     => $src,
 						] 
 					);
@@ -664,7 +740,7 @@ class Downloader {
 						LogLevel::ERROR,
 						sprintf( "❗ Failed to import or download any version of '%s'", $src ),
 						[
-							'post_id' => $post['ID'],
+							'post_id' => $post_id,
 							'src'     => $src,
 						] 
 					);
@@ -672,11 +748,11 @@ class Downloader {
 			}
 
 			// Update the Post content.
-			if ( ! $dry_run && $post_content_updated != $post['post_content'] ) {
-				$wpdb->update( $wpdb->prefix . 'posts', [ 'post_content' => $post_content_updated ], [ 'ID' => $post['ID'] ] ); // phpcs:ignore -- WordPress.DB.DirectDatabaseQuery.NoCaching.
-				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '✓ Post content updated 👍' ), [ 'post_id' => $post['ID'] ] );
-			} elseif ( $dry_run && $post_content_updated != $post['post_content'] ) {
-				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '✓ Post content updated 👍' ), [ 'post_id' => $post['ID'] ] );
+			if ( ! $dry_run && $post_content_updated != $post_content ) {
+				$wpdb->update( $wpdb->prefix . 'posts', [ 'post_content' => $post_content_updated ], [ 'ID' => $post_id ] ); // phpcs:ignore -- WordPress.DB.DirectDatabaseQuery.NoCaching.
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '✓ Post content updated 👍' ), [ 'post_id' => $post_id ] );
+			} elseif ( $dry_run && $post_content_updated != $post_content ) {
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '✓ Post content updated 👍' ), [ 'post_id' => $post_id ] );
 			}
 		}
 
@@ -689,74 +765,58 @@ class Downloader {
 
 	/**
 	 * Searches for all image URLs in post contents.
+	 * Only supports absolute and relative URLs (not data URLs e.g. data:image/png;base64,...).
 	 *
-	 * @param array $posts Array of post records, contains subarrays with keys 'ID' and 'post_content'.
+	 * @param string $post_content The post content.
 	 *
-	 * @return array An array containing image URL hostnames as keys and post IDs as values, plus a special key
-	 *               "relative URL paths" containing relative URLs and post IDs as values.
+	 * @return array An array containing image URL hostnames as values, plus a special value
+	 *               "relative URL paths" if there are relative URLs in post_content.
 	 */
-	public function get_all_image_hostnames_from_posts( $posts ) {
-		if ( empty( $posts ) ) {
-			return;
+	public function get_all_image_hostnames_from_post_content( string $post_content ): array {
+		if ( empty( $post_content ) ) {
+			return [];
 		}
 
-		$img_hostnames = [
-			'relative URL paths' => [],
-		];
+		$img_srcs = $this->get_all_img_srcs( $post_content );
+		if ( empty( $img_srcs ) ) {
+			return [];
+		}
 
-		foreach ( $posts as $i => $post ) {
-			$img_srcs = $this->get_all_img_srcs( $post['post_content'] );
-			if ( empty( $img_srcs ) ) {
+		$img_hostnames = [];
+		foreach ( $img_srcs as $img_src ) {
+
+			// Basic URL validation -- either relative, or absolute and valid.
+			$is_relative  = 0 === strpos( $img_src, '/' );
+			$is_absolute  = 0 === strpos( strtolower( $img_src ), 'http' );
+			$is_url_valid = $is_relative || ( $is_absolute && filter_var( $img_src, FILTER_VALIDATE_URL ) );
+			if ( ! $is_url_valid ) {
 				continue;
 			}
-			foreach ( $img_srcs as $img_src ) {
-				$parsed = wp_parse_url( $img_src );
-				if ( false === $parsed ) {
+
+			$parsed = wp_parse_url( $img_src );
+			if ( false === $parsed ) {
+				continue;
+			}
+
+			$hostname = $parsed['host'] ?? null;
+			if ( $is_absolute && $hostname ) {
+				if ( in_array( $hostname, $img_hostnames ) ) {
 					continue;
-				} elseif ( isset( $parsed['host'] ) ) {
-					if ( isset( $img_hostnames[ $parsed['host'] ] ) && in_array( $post['ID'], $img_hostnames[ $parsed['host'] ] ) ) {
-						continue;
-					}
-					$img_hostnames[ $parsed['host'] ][] = $post['ID'];
-				} else {
-					if ( in_array( $post['ID'], $img_hostnames['relative URL paths'] ) ) {
-						continue;
-					}
-					// There could be different types of `src` e.g. `src="data:image/svg+xml;base64"`, so this won't be perfect.
-					$img_hostnames['relative URL paths'][] = $post['ID'];
 				}
+				$img_hostnames[] = $hostname;
+			} elseif ( $is_relative ) {
+				// Add the special 'relative URL paths' value to the list of hostnames.
+				if ( in_array( 'relative URL paths', $img_hostnames ) ) {
+					continue;
+				}
+				$img_hostnames[] = 'relative URL paths';
+			} else {
+				// Edge cases, like `src="data:image/svg+xml;base64"` or absolute but invalid URLs "http://example.com:invalid".
+				continue;
 			}
 		}
 
 		return $img_hostnames;
-	}
-
-	/**
-	 * Searches and gets all URLs found in post content as `src` and `href` attributes, not just image URLs.
-	 *
-	 * @param array $posts Array of post records, contains subarrays with keys 'ID' and 'post_content'.
-	 *
-	 * @return array An array containing postIDs as keys, and value is a subarray of URLs found in the content.
-	 */
-	public function get_all_urls_from_posts( array $posts ): array {
-		if ( empty( $posts ) ) {
-			return [];
-		}
-
-		$urls = [];
-		foreach ( $posts as $post ) {
-			$post_id = $post['ID'];
-			$html    = $post['post_content'];
-			
-			$urls_post = $this->get_all_urls( $html );
-			if ( empty( $urls_post ) ) {
-				continue;
-			}
-
-			$urls[ $post_id ] = $urls_post;
-		}
-
-		return $urls;
 	}
 
 	/**
@@ -837,8 +897,12 @@ class Downloader {
 		$img_data_with_large = [];
 		foreach ( $img_data as $key_img_datum => $img_datum ) {
 			$src = trim( $img_datum['src'] );
-			// Basic URL validation.
-			if ( ! filter_var( $src, FILTER_VALIDATE_URL ) ) {
+
+			// Basic URL validation -- either relative, or absolute and valid.
+			$is_relative  = 0 === strpos( $src, '/' );
+			$is_absolute  = 0 === strpos( strtolower( $src ), 'http' );
+			$is_url_valid = $is_relative || ( $is_absolute && filter_var( $src, FILTER_VALIDATE_URL ) );
+			if ( ! $is_url_valid ) {
 				continue;
 			}
 
@@ -985,6 +1049,13 @@ class Downloader {
 
 		// Get the path (without host), and remove possible query params.
 		$src_path = wp_parse_url( $src )['path'];
+		if ( false === $src_path ) {
+			return new WP_Error(
+				'invalid_url_type',
+				sprintf( "Could not parse URL '%s'.", esc_url( $src ) ),
+				wp_json_encode( [ 'src' => $src ] )
+			);
+		}
 
 		// Try and get the local image file.
 		$is_local_file = false;
@@ -1008,24 +1079,30 @@ class Downloader {
 		 *        kind of `src`, e.g. `src="data:image/svg+xml;base64..."`, it still tries to transform it to a fully qualified
 		 *        URL by using the `--default-image-host-and-schema` to download from.
 		 */
-		$is_src_absolute     = ( 0 === strpos( strtolower( $src ), 'http' ) );
-		$is_src_relative_ref = ! $is_src_absolute;
+		$is_src_relative = 0 === strpos( $src, '/' );
+		$is_src_absolute = 0 === strpos( strtolower( $src ), 'http' );
 
 		// If no local image file is used, get a fully qualified remote URI.
 		if ( $is_src_absolute ) {
 			// A good old absolute URL.
 			$img_import_path = $src;
-		} elseif ( $is_src_relative_ref && ! $default_image_host_and_schema ) {
+		} elseif ( $is_src_relative && ! $default_image_host_and_schema ) {
 			return new WP_Error(
 				'no_default_host_provided',
 				sprintf( "Could not download relative src '%s' since --default-image-host-and-schema was not provided.", esc_url( $src ) ),
 				wp_json_encode( [ 'src' => $src ] )
 			);
-		} elseif ( $is_src_relative_ref && $default_image_host_and_schema ) {
+		} elseif ( $is_src_relative && $default_image_host_and_schema ) {
 			// Use the `--default-image-host-and-schema` to try and download a relative URL.
 			$img_import_path = $default_image_host_and_schema
 				. ( ( 0 !== strpos( strtolower( $src ), '/' ) ) ? '/' : '' )
 				. $src;
+		} elseif ( ! $is_src_relative && ! $is_src_absolute ) {
+			return new WP_Error(
+				'invalid_url_type',
+				sprintf( "Could not download unsupported src type '%s'.", esc_url( $src ) ),
+				wp_json_encode( [ 'src' => $src ] )
+			);
 		}
 
 		return $img_import_path;
@@ -1086,7 +1163,7 @@ class Downloader {
 	}
 
 	/**
-	 * Fetches `ID` and `post_content` from the posts table.
+	 * Fetches `ID`s of posts table.
 	 *
 	 * Post IDs can be specified by either of these:
 	 *  1. an array of $post_ids
@@ -1099,20 +1176,20 @@ class Downloader {
 	 * @param array|null $post_types    Post types.
 	 * @param array|null $post_statuses Post statuses.
 	 *
-	 * @return array|null An array of records from DB, with subarrays with keys 'ID' and 'post_content'.
+	 * @return array|null An array with post IDs.
 	 */
-	public function get_posts_ids_and_contents(
+	public function get_post_ids(
 		$post_ids = null,
 		$post_id_from = null,
 		$post_id_to = null,
 		$post_types = [ 'post', 'page' ],
 		$post_statuses = [ 'publish' ]
-	) {
+	): ?array {
 		global $wpdb;
 
 		$types_placeholders    = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 		$statuses_placeholders = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
-		$query                 = "SELECT ID, post_content FROM {$wpdb->prefix}posts WHERE post_type IN ( $types_placeholders ) AND post_status IN ( $statuses_placeholders ) ";
+		$query                 = "SELECT ID FROM {$wpdb->prefix}posts WHERE post_type IN ( $types_placeholders ) AND post_status IN ( $statuses_placeholders ) ";
 		$prepare_args          = [];
 		foreach ( $post_types as $post_type ) {
 			array_push( $prepare_args, $post_type );
@@ -1133,7 +1210,22 @@ class Downloader {
 		$query = $wpdb->prepare( $query, $prepare_args );
 
 		// phpcs:ignore -- statement fully prepared.
-		return $wpdb->get_results( $query, ARRAY_A );
+		return $wpdb->get_col( $query );
+	}
+
+	/**
+	 * Fetches `post_content` from the posts table.
+	 * 
+	 * @param int $post_id Post ID.
+	 * 
+	 * @return string|null Post content.
+	 */
+	public function get_post_content( $post_id ): ?string {
+		global $wpdb;
+
+		$result = $wpdb->get_var( $wpdb->prepare( "SELECT post_content FROM {$wpdb->prefix}posts WHERE ID = %d", $post_id ) ); // phpcs:ignore -- WordPress.DB.DirectDatabaseQuery.NoCaching.
+
+		return $result;
 	}
 
 	/**
