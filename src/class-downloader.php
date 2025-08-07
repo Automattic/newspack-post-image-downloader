@@ -272,6 +272,98 @@ class Downloader {
 				],
 			]
 		);
+		WP_CLI::add_command(
+			'newspack-post-image-downloader import-non-images-files',
+			[ $this, 'cmd_import_non_images_files' ],
+			[
+				'shortdesc' => 'Downloads other non-image files to local.',
+				'synopsis'  => [
+					[
+						'type'        => 'flag',
+						'name'        => 'dry-run',
+						'description' => 'Perform a dry run, making no changes.',
+						'optional'    => true,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'default-host-and-schema',
+						'description' => 'Used for relative URLs, provide the full schema and hostname where to download these from, e.g. `https://defaulthost.com`.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'extensions',
+						'description' => 'CSV list of extensions to download. E.g. --extensions=pdf,docx,xlsx,pptx',
+						'optional'    => false,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'flag',
+						'name'        => 'do-not-download-relative-urls',
+						'description' => 'Unless this flag is set, the command will automatically download relative image URLs by prepending the --default-image-host-and-schema to them.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'exclude-hosts',
+						'description' => 'CSV, list of hosts to exclude downloading from. Can use a wildcard, e.g. to cover a host and all its subdomains, use these two values `google.com,*.google.com`, or for multiple domain extensions use `www.google.*`, or can even use `*.google.*` for all subdomains and all domain extensions.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'only-download-from-hosts',
+						'description' => 'CSV, list of specific hosts to download images from. If provided, it will skip downloading from any other host, and if this param is provided, the `exclude-param` will not work. Can use a wildcard, e.g. to cover a host and all its subdomains, use these two values `somehost.com,*.somehost.com`, or for multiple domain extensions use `www.somehost.*`, or can even use `*.somehost.*` for all subdomains and all domain extensions.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'folder-local-files',
+						'description' => 'Local folder which contains the files. Files which are found here, get imported from local files, otherwise they get downloaded via HTTP.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'post-types',
+						'description' => 'Optional CSV Post types. Defaults are `post,page`',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'post-statuses',
+						'description' => 'Optional CSV Post statuses. Defaults is `publish`',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'post-ids-csv',
+						'description' => 'CSV list of Post IDs.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'post-id-from',
+						'description' => 'Only scan Post IDs from-to.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
+						'name'        => 'post-id-to',
+						'description' => 'Only scan Post IDs from-to.',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+				],
+			]
+		);
 	}
 
 	/**
@@ -745,6 +837,265 @@ class Downloader {
 						] 
 					);
 				}
+			}
+
+			// Update the Post content.
+			if ( ! $dry_run && $post_content_updated != $post_content ) {
+				$wpdb->update( $wpdb->prefix . 'posts', [ 'post_content' => $post_content_updated ], [ 'ID' => $post_id ] ); // phpcs:ignore -- WordPress.DB.DirectDatabaseQuery.NoCaching.
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '✓ Post content updated 👍' ), [ 'post_id' => $post_id ] );
+			} elseif ( $dry_run && $post_content_updated != $post_content ) {
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '✓ Post content updated 👍' ), [ 'post_id' => $post_id ] );
+			}
+		}
+
+		// Required for the $wpdb->update() to sink in.
+		wp_cache_flush();
+
+		// Closing remarks.
+		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( 'All done!  🙌  Took %d mins.', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
+	}
+
+	/**
+	 * Extracts all absolute and relative URLs from a HTML content.
+	 * Searches in HTML as a string, and not as a DOM.
+	 *
+	 * @param string $html HTML content.
+	 * @return array Array of matched URLs.
+	 */
+	public function get_urls_from_html( string $html ): array {
+	
+		/**
+		 * (?<=[\'"\s\n\r\t])           = Ensure the match is *preceded* by a quote (' or "), whitespace, newline, carriage return, or tab
+		 *                                to increase likelihood it's part of an HTML attribute or text content.
+		 * (                            = Start of main capture group:
+		 *   https?://[^\s"\'>\n\r\t]+  = Match http or https absolute URLs (non-greedy up to next space, quote, angle bracket, or line break).
+		 *   |                          = OR
+		 *   /[^\s"\'>\n\r\t]+          = Match relative URLs that start with a forward slash.
+		 * )                            = End of capture group.
+		 * #i                           = Case-insensitive delimiter.
+		 */
+		$pattern = '#(?<=[\'"\s\n\r\t])(https?://[^\s"\'>\n\r\t]+|/[^\s"\'>\n\r\t]+)#i';
+		preg_match_all( $pattern, $html, $matches );
+	
+		// Unique URLs.
+		$urls = array_unique( $matches[0] );
+
+		return $urls;
+	}
+
+	/**
+	 * Gets the extension of a URL path segment (i.e. the URLs file extension).
+	 *
+	 * @param string $url URL.
+	 * @return string Extension.
+	 */
+	public function get_url_extension( string $url ): string {
+		
+		// Cleanups.
+		$url = trim( $url );
+		// Remove query parameters.
+		$url = preg_replace( '/\?.*$/', '', $url );
+		// Remove fragment identifier.
+		$url = preg_replace( '/#.*$/', '', $url );
+		// Remove trailing slash.
+		$url = rtrim( $url, '/' );
+		
+		// Get the path segment.
+		$parsed_url = wp_parse_url( $url );
+		$path       = $parsed_url['path'] ?? '';
+		if ( empty( $path ) || '/' === $path ) {
+			return '';
+		}
+		
+		// Get extension of the path segment.
+		$extension = pathinfo( $path, PATHINFO_EXTENSION );
+
+		return $extension;
+	}
+
+	/**
+	 * Callable for `newspack-post-image-downloader import-non-images-files`.
+	 * See command description in \NewspackPostImageDownloader\Downloader::register_commands.
+	 *
+	 * @param array $args       CLI arguments.
+	 * @param array $assoc_args CLI associative arguments.
+	 */
+	public function cmd_import_non_images_files( $args, $assoc_args ) {
+		$dry_run                       = isset( $assoc_args['dry-run'] ) ? true : false;
+		$extensions                    = explode( ',', $assoc_args['extensions'] );
+		$do_not_download_relative_urls = isset( $assoc_args['do-not-download-relative-urls'] ) ? true : false;
+		$post_types                    = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : [ 'post', 'page' ];
+		$post_statuses                 = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : [ 'publish' ];
+		$post_ids_specific             = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
+		$post_id_from                  = isset( $assoc_args['post-id-from'] ) ? (int) $assoc_args['post-id-from'] : null;
+		$post_id_to                    = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
+		$hosts_excluded                = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
+		$only_download_from_hosts      = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
+		$default_image_host_and_schema = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
+		$folder_local_images           = isset( $assoc_args['folder-local-images'] ) ? rtrim( $assoc_args['folder-local-images'], '/' ) : null;
+
+		$this->init_loggers( __FUNCTION__ );
+		if ( empty( $extensions ) ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Must provide a list of extensions to download, e.g. --extensions=pdf,docx,xlsx,pptx' );
+			exit;
+		}
+		if ( ( $post_ids_specific && $post_id_from ) || ( $post_ids_specific && $post_id_to ) ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Sorry, you can either specify a CSV list of Post IDs, or a range of Post IDs.' );
+			exit;
+		}
+		if ( ( $post_id_from && ( null === $post_id_to ) ) || ( ( null === $post_id_from ) && $post_id_to ) ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ Both --post-id-from and --post-id-to are required when using ranges.' );
+			exit;
+		}
+		if ( $only_download_from_hosts && $hosts_excluded ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ When providing the `--only-download-from-hosts` param, do not use the `--exclude-hosts` at the same time.' );
+			exit;
+		}
+
+		global $wpdb;
+		$time_start        = microtime( true );
+		$hosts_excluded    = $this->get_all_excluded_hosts( $hosts_excluded );
+		$attachments_logic = new Attachments();
+		
+		// Normalize extensions to lowercase.
+		$extensions = array_map( 'strtolower', $extensions );
+
+		// Validate extensions.
+		foreach ( $extensions as $extension ) {
+			if ( ! wp_check_filetype( $extension ) ) {
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, sprintf( "❗ Extension '%s' is presently not supported by your site's Media Library (@see `wp_check_filetype()`). Please exclude it from the list of extensions to download, or extend the list of supported extensions.", $extension ) );
+				exit;
+			}
+		}
+
+		// Fetch Posts.
+		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::DEBUG, 'Fetching Posts...' );
+		$post_ids = $this->get_post_ids( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
+		if ( empty( $post_ids ) ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, 'No Posts found... 🤔' );
+			exit;
+		}
+		MemoryCleanupHook::cleanup();
+
+		// Loop posts and download URLs with extensions.
+		foreach ( $post_ids as $key_post => $post_id ) {
+			// Progress.
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( '(%d)/(%d) post ID %d', $key_post + 1, count( $post_ids ), $post_id ) );
+
+			// Get post content.
+			$post_content = $this->get_post_content( $post_id );
+			if ( empty( $post_content ) ) {
+				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, sprintf( 'No post content in post ID %d, skipping...', $post_id ) );
+				continue;
+			}
+			MemoryCleanupHook::cleanup( 0, $key_post + 1, 20 );
+
+			// Get all URLs with extensions from HTML.
+			$urls_all        = $this->get_urls_from_html( $post_content );
+			$urls_extensions = [];
+			foreach ( $urls_all as $url ) {
+				// Basic URL validation -- either relative, or absolute and valid.
+				$is_relative  = 0 === strpos( $url, '/' );
+				$is_absolute  = 0 === strpos( strtolower( $url ), 'http' );
+				$is_url_valid = $is_relative || ( $is_absolute && filter_var( $url, FILTER_VALIDATE_URL ) );
+				if ( ! $is_url_valid ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Invalid URL type '%s'", $url ), [ 'post_id' => $post_id ] );
+					continue;
+				}
+
+				// Filter by extension.
+				$url_extension = $this->get_url_extension( $url );
+				if ( ! empty( $url_extension ) && in_array( strtolower( $url_extension ), $extensions, true ) ) {
+					$urls_extensions[] = $url;
+				}
+			}
+			if ( empty( $urls_extensions ) ) {
+				continue;
+			}
+
+			// Download the filtered URLs.
+			$post_content_updated = $post_content;
+			foreach ( $urls_extensions as $url ) {
+				// Basic URL validation -- either relative, or absolute and valid.
+				$is_relative  = 0 === strpos( $url, '/' );
+				$is_absolute  = 0 === strpos( strtolower( $url ), 'http' );
+				$is_url_valid = $is_relative || ( $is_absolute && filter_var( $url, FILTER_VALIDATE_URL ) );
+
+				// Skip relative URLs if the flag is set.
+				if ( $is_relative && $do_not_download_relative_urls ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, relative URL '%s'", $url ), [ 'post_id' => $post_id ] );
+					continue;
+				}
+
+				// Filter URL by host.
+				if ( $only_download_from_hosts ) {
+					// Skip if relative URL host (--default-image-host-and-schema) does not match $only_download_from_hosts.
+					if ( $is_relative && ! $this->does_uri_match_host( $default_image_host_and_schema, $only_download_from_hosts ) ) {
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping relative URL, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
+						continue;
+					} elseif ( $is_absolute && ! $this->does_uri_match_host( $url, $only_download_from_hosts ) ) {
+						// Skip if absolute URL host does not match $only_download_from_hosts.
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
+						continue;
+					}
+				} elseif ( $hosts_excluded ) {
+					// Skip if relative URL host matches $hosts_excluded.
+					if ( $is_relative && $this->does_uri_match_host( $default_image_host_and_schema, $hosts_excluded ) ) {
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping relative URL, excluded host '%s'", $url ), [ 'post_id' => $post_id ] );
+						continue;
+					} elseif ( $is_absolute && $this->does_uri_match_host( $url, $hosts_excluded ) ) {
+						// Skip if absolute URL host matches $hosts_excluded.
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, excluded host '%s'", $url ), [ 'post_id' => $post_id ] );
+						continue;
+					}
+				}
+
+				// Skip if $url was already used/downloaded and replaced.
+				if ( false === strpos( $post_content_updated, $url ) && false === strpos( $post_content_updated, esc_attr( $url ) ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, URL already downloaded '%s'", $url ), [ 'post_id' => $post_id ] );
+					continue;
+				}
+
+				// Get the fully qualified import path of this file (either from local folder, or from remote URL).
+				$file_import_path = $this->get_fully_qualified_img_import_or_download_path( $url, $folder_local_images, $default_image_host_and_schema );
+				if ( is_wp_error( $file_import_path ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Error getting file path for '%s', error: %s", $url, $file_import_path->get_error_message() ), [ 'post_id' => $post_id ] );
+					continue;
+				}
+
+				// Set title to image filename (no extension).
+				$basename       = basename( $file_import_path );
+				$filename_parts = pathinfo( $basename );
+				$title          = $filename_parts['filename'];
+
+				// Download the file.
+				$attachment_id = ! $dry_run ? $attachments_logic->import_external_file( $file_import_path, $title, null, null, null, $post_id ) : 'N/A';
+				if ( is_wp_error( $attachment_id ) ) {
+					$this->log(
+						self::LOG_OUTPUTS['CLI_AND_FILE'],
+						LogLevel::ERROR,
+						sprintf( "❗ Error importing file '%s', error: %s", $file_import_path, $attachment_id->get_error_message() ),
+						[
+							'url'     => $url,
+							'post_id' => $post_id,
+						] 
+					);
+					continue;
+				}
+
+				$this->log(
+					self::LOG_OUTPUTS['CLI_AND_FILE'],
+					LogLevel::INFO,
+					sprintf( "✓ %sImported file '%s' to '%s'", $dry_run ? '[Dry Run] ' : '', $file_import_path, $attachment_id ),
+					[
+						'url'     => $url,
+						'post_id' => $post_id,
+					] 
+				);
+
+				// Replace $url with imported URL.
+				$url_imported         = ! $dry_run ? wp_get_attachment_url( $attachment_id ) : 'n/a';
+				$post_content_updated = str_replace( $url, $url_imported, $post_content_updated );
 			}
 
 			// Update the Post content.
