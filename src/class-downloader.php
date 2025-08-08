@@ -396,7 +396,7 @@ class Downloader {
 
 			// Get all URLs, or just image `src`s.
 			$urls = $include_non_image_urls
-				? $this->get_all_urls( $post_content )
+				? $this->get_all_urls_from_html( $post_content )
 				: $this->get_all_img_srcs( $post_content );
 			if ( empty( $urls ) ) {
 				continue;
@@ -947,7 +947,7 @@ class Downloader {
 			MemoryCleanupHook::cleanup( 0, $key_post + 1, 10 );
 
 			// Get all URLs with extensions from HTML.
-			$urls_all        = $this->get_urls_from_html( $post_content );
+			$urls_all        = $this->get_all_urls_from_html( $post_content );
 			$urls_extensions = [];
 			foreach ( $urls_all as $url ) {
 				// Validate URL.
@@ -1084,33 +1084,6 @@ class Downloader {
 		// Closing remarks.
 		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( 'All done!  🙌  Took %d mins.', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 		$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::INFO, sprintf( 'See the CSV file for results: %s', $csv_file ) );
-	}
-
-	/**
-	 * Extracts all absolute and relative URLs from a HTML content.
-	 * Searches in HTML as a string, and not as a DOM.
-	 *
-	 * @param string $html HTML content.
-	 * @return array Array of matched URLs.
-	 */
-	public function get_urls_from_html( string $html ): array {
-		/**
-		 * (?<=[\'"\s\n\r\t])           = Ensure the match is *preceded* by a quote (' or "), whitespace, newline, carriage return, or tab
-		 *                                to increase likelihood it's part of an HTML attribute or text content.
-		 * (                            = Start of main capture group:
-		 *   https?://[^\s"\'>\n\r\t]+  = Match http or https absolute URLs (non-greedy up to next space, quote, angle bracket, or line break).
-		 *   |                          = OR
-		 *   /[^\s"\'>\n\r\t]+          = Match relative URLs that start with a forward slash.
-		 * )                            = End of capture group.
-		 * #i                           = Case-insensitive delimiter.
-		 */
-		$pattern = '#(?<=[\'"\s\n\r\t])(https?://[^\s"\'>\n\r\t]+|/[^\s"\'>\n\r\t]+)#i';
-		preg_match_all( $pattern, $html, $matches );
-	
-		// Unique URLs.
-		$urls = array_unique( $matches[0] );
-
-		return $urls;
 	}
 
 	/**
@@ -1685,7 +1658,7 @@ class Downloader {
 	 *
 	 * @return array An array of unique and valid/supported URLs.
 	 */
-	public function get_all_urls( string $html ): array {
+	public function get_all_urls_from_html( string $html ): array {
 		$urls    = [];
 		$crawler = new Crawler( $html );
 		
