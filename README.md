@@ -1,24 +1,34 @@
 # Newspack Post Image Downloader
 
-This plugin is a content migration service tool. It imports externally hosted images found in your Post contents.
+This plugin is a content migration service tool. It imports externally hosted images or non-image file URLs found in your Post contents.
 
-A typical use case for downloading and importing external images, is to aid importing of all the contents after the site's migration from one host to another.
+A typical use case for downloading and importing external images, is to aid migration from one host to another.
 
-The plugin can first attempt to import the images from local files, if you have them available as local files, or if not, it will download and import them from the source URL.
+An optional feature is first attempting to import from a provided local folder containing the files, but if the image/file is not found it will be download from remote URL.
+
+Another functionality is listing all the image or non-image URLs in your content database. To locate the image URLs, `src`s and `srcset`s of `<img>` elements are searched. To locate non-image URLs, a hybrid approach is used to search for them: firstly various attribute URLs are searched on DOM level, then additionally HTML is searched as clear text for just additional absolute URLs.
+
+The plugin presently supports three kinds of URLs:
+- absolute URLs (e.g. `https://example.com/wp-content/uploads/image.png`)
+- root-relative URLs (e.g. `/wp-content/uploads/image.png`)
+- protocol-relative URLs (e.g. `//example.com/path`)
+but not:
+- page-relative (e.g. `../uploads/image.png`)
+
 
 ## Features
 
 The plugin features CLI commands with parameters which offer a flexible set of basic features.
 
-### -- download or import images from local files 
+### -- download or import images/files from local files 
 
-If you have images available in your local files, and you use the `--folder-local-images` parameter, the plugin will first attempt to import these directly, without downloading them.
+If you have images available in your local files, and you use the `--folder-local-images` or `--folder-local-files` parameter, the plugin will first attempt to import these directly, without downloading them.
 
-### -- download images from specific hosts only
+### -- download images/files from specific hosts only
 
 The plugin downloads all the externally hosted images by default. Optionally, we can set to download just from specific hosts.
 
-There is a helper command called `scan-existing-images-hostnames` which lists all the host names used in images. After listing all existing hosts, we can chose to download just from specific ones (via the `--only-download-from-hosts` command parameter).
+There is a helper command called `scan-existing-urls` which lists all the host names used in images. After listing all existing hosts, we can chose to download just from specific ones (via the `--only-download-from-hosts` command parameter).
 
 ### -- skip (exclude) specific hosts from downloading
 
@@ -26,11 +36,11 @@ Optional. Alternatively, you can specify hosts not to download images from, and 
 
 ### -- skip (exclude) relative URLs from downloading
 
-Optional. Unless `--do-not-download-relative-urls` flag is set, the command will automatically download relative image URLs by prepending the `--default-image-host-and-schema` to them.
+Optional. Unless `--do-not-download-root-relative-urls` and `--do-not-download-protocol-relative-urls` flags are set, the command will automatically download relative image URLs by prepending the `--default-image-host-and-schema` or `https:` protocol to them.
 
 ### -- full-size image downloading
 
-Unless the optional flag is set `--do-not-download-large-sizes`, the `import-images` command will automatically attempt to import the large-sized version of the image (non-scaled and non-intermediate).
+Unless the optional flag is set `--do-not-download-large-sizes`, the `download-images` command will automatically attempt to import the large-sized version of the image (non-scaled and non-intermediate).
 
 This ensures that the imported Media Library attachment image is of the highest available quality. Then the smaller scaled/intermediate image also gets downloaded side-by-side to the imported larger attachment object. The effect is not seen in post_content, as the same size of image will be displayed, but the Media Library does get the highest available image quality.
 
@@ -39,6 +49,10 @@ E.g.1. if an intermediate image is found in post_content for download https://ww
 E.g.2. or if a scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg is used, the command will try and import the non-scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg , and still seamlessly download and use the scaled version in post_content.
 
 See more about image sizes in [WordPress docs](https://make.wordpress.org/core/2019/10/09/introducing-handling-of-big-images-in-wordpress-5-3/).
+
+### -- non-image file downloading
+
+To download non-image files, a mandatory `--extensions` needs to be provided with specific extensions to download, e.g. `--extensions=pdf,docx,xlsx,pptx`.
 
 ### -- parallel downloading
 
