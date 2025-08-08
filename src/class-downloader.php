@@ -880,7 +880,7 @@ class Downloader {
 		$hosts_excluded                         = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
 		$only_download_from_hosts               = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
 		$default_image_host_and_schema          = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
-		$folder_local_images                    = isset( $assoc_args['folder-local-images'] ) ? rtrim( $assoc_args['folder-local-images'], '/' ) : null;
+		$folder_local_files                     = isset( $assoc_args['folder-local-files'] ) ? rtrim( $assoc_args['folder-local-files'], '/' ) : null;
 
 		$this->init_loggers( __FUNCTION__ );
 		if ( empty( $extensions ) ) {
@@ -1020,7 +1020,7 @@ class Downloader {
 				}
 
 				// Get the fully qualified import path of this file (either from local folder, or from remote URL).
-				$file_import_path = $this->get_fully_qualified_img_import_or_download_path( $url, $folder_local_images, $default_image_host_and_schema );
+				$file_import_path = $this->get_fully_qualified_img_import_or_download_path( $url, $folder_local_files, $default_image_host_and_schema );
 				if ( is_wp_error( $file_import_path ) ) {
 					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Error getting file path for '%s', error: %s", $url, $file_import_path->get_error_message() ), [ 'post_id' => $post_id ] );
 					continue;
@@ -1332,14 +1332,14 @@ class Downloader {
 	 * or else returns a fully qualified HTTP path to download from.
 	 *
 	 * @param string $src                           Img `src` URI.
-	 * @param string $folder_local_images           Path to local folder where image files can be found at.
+	 * @param string $folder_local_files            Path to local folder where image files can be found at.
 	 * @param string $default_image_host_and_schema Default schema+host used to download relative referenced URLs.
 	 *                                              e.g. if you provide the value 'https://dl_host`, it will attempt to download.
 	 *                                              a relative `src="/path/img.jpg"` from 'https://dl_host/path/img.jpg'.
 	 *
 	 * @return string|WP_Error Either a full path to a local image file, or a fully qualified HTTP path to download the image from.
 	 */
-	public function get_fully_qualified_img_import_or_download_path( $src, $folder_local_images = null, $default_image_host_and_schema = null ): string|WP_Error {
+	public function get_fully_qualified_img_import_or_download_path( $src, $folder_local_files = null, $default_image_host_and_schema = null ): string|WP_Error {
 		$img_import_path = null;
 
 		// Get the path (without host), and remove possible query params.
@@ -1354,8 +1354,8 @@ class Downloader {
 
 		// Try and get the local image file.
 		$is_local_file = false;
-		if ( $folder_local_images ) {
-			$img_local_file_path = $folder_local_images . '/' . ltrim( $src_path, '/' );
+		if ( $folder_local_files ) {
+			$img_local_file_path = $folder_local_files . '/' . ltrim( $src_path, '/' );
 			if ( $this->file_exists( $img_local_file_path ) ) {
 				$is_local_file   = true;
 				$img_import_path = $img_local_file_path;
