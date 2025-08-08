@@ -137,13 +137,13 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Relative reference src. All needed params are provided, but the image file is not found there.
 	 */
 	public function test_relative_ref_src_no_local_file() {
-		$src                           = 'path/img.jpg';
+		$src                           = '/path/img.jpg';
 		$folder_local_images           = '/tmp/mock';
 		$default_image_host_and_schema = 'https://deault/download/from';
 
 		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
 
-		$this->assertSame( $default_image_host_and_schema . '/' . $src, $img_import_path );
+		$this->assertSame( $default_image_host_and_schema . $src, $img_import_path );
 	}
 
 	/**
@@ -327,37 +327,37 @@ class Test_Downloader extends WP_UnitTestCase {
 		return [
 			// E.g. 1. intermediate image: returns non-intermediate.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 			],
 			// E.g. 3. non-intermediate image: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 				null,
 			],
 			// E.g. 4. scaled image (not intermediate): returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 				null,
 			],
 			// E.g. 5. image with query params: returns non-intermediate without query.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar',
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 			],
 			// E.g. 6. image with spaces and query params: returns non-intermediate without query and trimmed.
 			[
-				'   https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar   ',
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'   https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar   ',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 			],
 			// E.g. 7. SVG image (should not match intermediate pattern): returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector-300x244.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 			],
 			// E.g. 8. non-intermediate SVG: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 				null,
 			],
 		];
@@ -372,47 +372,47 @@ class Test_Downloader extends WP_UnitTestCase {
 		return [
 			// E.g. 1. scaled image: returns non-scaled.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 			],
 			// E.g. 2. non-scaled image: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/regular_puppy.jpg',
 				null,
 			],
 			// E.g. 3. scaled image with query params: returns non-scaled without query.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 			],
 			// E.g. 4. scaled image with spaces and query params: returns non-scaled without query and trimmed.
 			[
-				'   https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar   ',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+				'   https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar   ',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 			],
 			// E.g. 5. scaled PNG image: returns non-scaled PNG.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/image-scaled.png',
-				'https://www.mysite.com/wp-content/uploads/2025/01/image.png',
+				'https://www.example.com/wp-content/uploads/2025/01/image-scaled.png',
+				'https://www.example.com/wp-content/uploads/2025/01/image.png',
 			],
 			// E.g. 6. scaled WebP image: returns non-scaled WebP.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/image-scaled.webp',
-				'https://www.mysite.com/wp-content/uploads/2025/01/image.webp',
+				'https://www.example.com/wp-content/uploads/2025/01/image-scaled.webp',
+				'https://www.example.com/wp-content/uploads/2025/01/image.webp',
 			],
 			// E.g. 7. scaled SVG image: returns non-scaled SVG.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector-scaled.svg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector-scaled.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 			],
 			// E.g. 8. non-scaled SVG: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 				null,
 			],
 			// E.g. 9. intermediate image (not scaled): returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				null,
 			],
 		];
@@ -427,10 +427,10 @@ class Test_Downloader extends WP_UnitTestCase {
 		return [
 			// Intermediate image.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
-					'src_non_intermediate' => 'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+					'src_non_intermediate' => 'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 					'src_non_scaled'       => null,
 					'title'                => '',
 					'alt'                  => '',
@@ -438,20 +438,20 @@ class Test_Downloader extends WP_UnitTestCase {
 			],
 			// Scaled image.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 					'src_non_intermediate' => null,
-					'src_non_scaled'       => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+					'src_non_scaled'       => 'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 					'title'                => '',
 					'alt'                  => '',
 				],
 			],
 			// Non-intermediate, non-scaled image.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 					'src_non_intermediate' => null,
 					'src_non_scaled'       => null,
 					'title'                => '',
@@ -460,9 +460,9 @@ class Test_Downloader extends WP_UnitTestCase {
 			],
 			// SVG intermediate.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector-300x244.svg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/vector-300x244.svg',
 					'src_non_intermediate' => null,
 					'src_non_scaled'       => null,
 					'title'                => '',
@@ -471,9 +471,9 @@ class Test_Downloader extends WP_UnitTestCase {
 			],
 			// SVG non-intermediate.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 					'src_non_intermediate' => null,
 					'src_non_scaled'       => null,
 					'title'                => '',

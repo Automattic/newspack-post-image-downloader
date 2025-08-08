@@ -22,7 +22,7 @@ The plugin features CLI commands with parameters which offer a flexible set of b
 
 ### -- download or import images/files from local files 
 
-If you have images available in your local files, and you use the `--folder-local-images` or `--folder-local-files` parameter, the plugin will first attempt to import these directly, without downloading them.
+If you have images available in your local files, and you use the `--folder-local-files` parameter, the plugin will first attempt to import these directly, without downloading them.
 
 ### -- download images/files from specific hosts only
 

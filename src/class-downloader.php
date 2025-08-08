@@ -193,7 +193,7 @@ class Downloader {
 					],
 					[
 						'type'        => 'assoc',
-						'name'        => 'folder-local-images',
+						'name'        => 'folder-local-files',
 						'description' => 'Local folder which contains the image files. Images which are found here, get imported from local files, otherwise they get downloaded via HTTP.',
 						'optional'    => true,
 						'repeating'   => false,
@@ -477,7 +477,7 @@ class Downloader {
 		$hosts_excluded                         = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
 		$only_download_from_hosts               = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
 		$default_image_host_and_schema          = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
-		$folder_local_images                    = isset( $assoc_args['folder-local-images'] ) ? rtrim( $assoc_args['folder-local-images'], '/' ) : null;
+		$folder_local_files                     = isset( $assoc_args['folder-local-files'] ) ? rtrim( $assoc_args['folder-local-files'], '/' ) : null;
 
 		$this->init_loggers( __FUNCTION__ );
 		if ( ( $post_ids_specific && $post_id_from ) || ( $post_ids_specific && $post_id_to ) ) {
@@ -649,7 +649,7 @@ class Downloader {
 				foreach ( $srcs_ranked as $key_src_ranked => $src_ranked ) {
 
 					// Get the fully qualified import path of this ranked src file (either from local folder, or from remote URL).
-					$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_images, $default_image_host_and_schema );
+					$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_files, $default_image_host_and_schema );
 					if ( is_wp_error( $img_import_path ) ) {
 						$this->log(
 							self::LOG_OUTPUTS['CLI_AND_FILE'],
@@ -1366,14 +1366,11 @@ class Downloader {
 		}
 
 		/**
-		 * Handles four types of `src`s like this:
+		 * Handles three types of `src`s like this:
 		 *      - an absolute HTTP URL, e.g. 'https://host.com/img.jpg'
 		 *      - a protocol-relative URL, e.g. '//cdn.host.com/img.jpg'
 		 *      - a relative reference from root, e.g. '/segment/img.jpg', and uses the `--default-image-host-and-schema` to try
 		 *        and download it
-		 *      - a relative reference without the beginning `/`, e.g. 'segment/img.jpg'. Although this could also be a different
-		 *        kind of `src`, e.g. `src="data:image/svg+xml;base64..."`, it still tries to transform it to a fully qualified
-		 *        URL by using the `--default-image-host-and-schema` to download from.
 		 */
 		$is_absolute          = $this->is_url_absolute( $src );
 		$is_root_relative     = $this->is_url_root_relative( $src );
