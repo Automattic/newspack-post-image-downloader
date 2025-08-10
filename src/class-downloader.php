@@ -402,6 +402,8 @@ class Downloader {
 				continue;
 			}
 			foreach ( $urls as $url ) {
+				$url = trim( $url );
+
 				// Validate URL.
 				$is_absolute          = $this->is_url_absolute( $url );
 				$is_root_relative     = $this->is_url_root_relative( $url );
@@ -969,6 +971,8 @@ class Downloader {
 			// Download the filtered URLs.
 			$post_content_updated = $post_content;
 			foreach ( $urls_extensions as $url ) {
+				$url = trim( $url );
+
 				$is_absolute          = $this->is_url_absolute( $url );
 				$is_root_relative     = $this->is_url_root_relative( $url );
 				$is_protocol_relative = $this->is_url_protocol_relative( $url );
@@ -1462,23 +1466,27 @@ class Downloader {
 
 	/**
 	 * Checks if a URL is absolute, i.e. starting with `http` or `https`, e.g. `https://example.com/path`.
+	 * Note: this method will trim the input URL before checking if it's absolute.
 	 * 
 	 * @param string $url URL.
 	 * 
 	 * @return bool True if the URL is absolute, false otherwise.
 	 */
 	public function is_url_absolute( string $url ): bool {
+		$url = trim( $url );
 		return 0 === strpos( strtolower( $url ), 'http' );
 	}
 
 	/**
 	 * Checks if a URL is root-relative, i.e. starting with `/`, e.g. `/path/to/image.jpg`.
+	 * Note: this method will trim the input URL before checking if it's root-relative.
 	 * 
 	 * @param string $url URL.
 	 * 
 	 * @return bool True if the URL is relative, false otherwise.
 	 */
 	public function is_url_root_relative( string $url ): bool {
+		$url                    = trim( $url );
 		$ends_with_single_slash = 0 === strpos( $url, '/' );
 		$is_protocol_relative   = $this->is_url_protocol_relative( $url );
 		
@@ -1487,17 +1495,20 @@ class Downloader {
 
 	/**
 	 * Checks if a URL is protocol-relative, i.e. starting with `//`, e.g. `//example.com/path`.
+	 * Note: this method will trim the input URL before checking if it's protocol-relative.
 	 * 
 	 * @param string $url URL.
 	 * 
 	 * @return bool True if the URL is relative, false otherwise.
 	 */
 	public function is_url_protocol_relative( string $url ): bool {
-		return 0 === strpos( $url, '//' );
+		$url = trim( $url );
+		return ( 0 === strpos( $url, '//' ) ) && ! ( 0 === strpos( $url, '///' ) );
 	}
 
 	/**
 	 * Checks if a URL is a valid root-relative (starting with `/`), protocol-relative (starting with `//`), or absolute (starting with `http` or `https`) URL.
+	 * Note: this method will trim the input URL before checking if it's valid.
 	 * 
 	 * @param string $url URL.
 	 * 
@@ -1505,6 +1516,8 @@ class Downloader {
 	 *              invalid URLs like `http://example.com:invalid`.
 	 */
 	public function is_url_valid( string $url ): bool {
+		$url = trim( $url );
+
 		$is_root_relative     = $this->is_url_root_relative( $url );
 		$is_protocol_relative = $this->is_url_protocol_relative( $url );
 		$is_absolute          = $this->is_url_absolute( $url );
@@ -1612,20 +1625,20 @@ class Downloader {
 
 		foreach ( $crawler->getIterator() as $node ) {
 			// Extract src attribute.
-			$src = $node->attr( 'src' );
+			$src = $node->getAttribute( 'src' );
 			if ( ! empty( $src ) ) {
 				$img_srcs[] = $src;
 			}
 
 			// Extract srcset attribute and parse individual URLs.
-			$srcset = $node->attr( 'srcset' );
+			$srcset = $node->getAttribute( 'srcset' );
 			if ( ! empty( $srcset ) ) {
 				$srcset_urls = $this->get_urls_from_srcset( $srcset );
 				$img_srcs    = array_merge( $img_srcs, $srcset_urls );
 			}
 
 			// Extract data-srcset attribute and parse individual URLs.
-			$data_srcset = $node->attr( 'data-srcset' );
+			$data_srcset = $node->getAttribute( 'data-srcset' );
 			if ( ! empty( $data_srcset ) ) {
 				$data_srcset_urls = $this->get_urls_from_srcset( $data_srcset );
 				$img_srcs         = array_merge( $img_srcs, $data_srcset_urls );
@@ -1677,22 +1690,22 @@ class Downloader {
 			'data-preview',
 		];
 		foreach ( $simple_attributes as $attribute ) {
-			$crawler->filter( "[{$attribute}]" )->each(
-				function ( $node ) use ( &$urls, $attribute ) {
-					$urls[] = $node->attr( $attribute );
-				}
-			);
+			$crawler = $crawler->filter( "[{$attribute}]" );
+			foreach ( $crawler->getIterator() as $node ) {
+				$urls[] = $node->getAttribute( $attribute );
+			}
 		}
 		// Handle srcsets with  multiple URLs.
 		$srcset_attributes = [ 'srcset', 'data-srcset' ];
 		foreach ( $srcset_attributes as $attribute ) {
-			$crawler->filter( "[{$attribute}]" )->each(
-				function ( $node ) use ( &$urls, $attribute ) {
-					$srcset = $node->attr( $attribute );
-					// Parse srcset to extract individual URLs.
+			$crawler = $crawler->filter( "[{$attribute}]" );
+			foreach ( $crawler->getIterator() as $node ) {
+				// Extract URLs from srcset.
+				$srcset = $node->getAttribute( $attribute );
+				if ( ! empty( $srcset ) ) {
 					$urls = array_merge( $urls, $this->get_urls_from_srcset( $srcset ) );
 				}
-			);
+			}
 		}
 
 		/**

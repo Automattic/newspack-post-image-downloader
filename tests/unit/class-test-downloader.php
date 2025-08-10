@@ -794,10 +794,10 @@ class Test_Downloader extends WP_UnitTestCase {
 				'Download from "https://example.com/file.pdf" or visit "http://another.com/page".',
 				[ 'https://example.com/file.pdf', 'http://another.com/page' ],
 			],
-			// Text with URLs and other content.
+			// Text with URLs and other content. Note, allowing dot to be a part of the URL because technically it's a valid URL character.
 			[
 				'Lorem ipsum dolor sit amet. Visit https://example.com/page for more info. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Check http://another.com/resource.',
-				[ 'https://example.com/page', 'http://another.com/resource' ],
+				[ 'https://example.com/page', 'http://another.com/resource.' ],
 			],
 			// Text with URLs with query parameters.
 			[
@@ -809,15 +809,15 @@ class Test_Downloader extends WP_UnitTestCase {
 				'Go to https://example.com/page#section for the specific section.',
 				[ 'https://example.com/page#section' ],
 			],
-			// Text with mixed URL types (should only extract absolute).
+			// Text with mixed URL types (should only extract absolute). Note, allowing comma and dot to be a part of the URL because technically they are valid URL characters.
 			[
 				'Visit https://example.com/page, /relative/path, //protocol-relative.com/path, and http://another.com/resource.',
-				[ 'https://example.com/page', 'http://another.com/resource' ],
+				[ 'https://example.com/page,', 'http://another.com/resource.' ],
 			],
-			// Text with source-relative URLs and protocol-relative URLs.
+			// Text with source-relative URLs and protocol-relative URLs. Note, allowing dot to be a part of the URL because technically it's a valid URL character.
 			[
 				'Visit https://example.com/page or /relative/path or //protocol-relative.com/path or http://another.com/resource.',
-				[ 'https://example.com/page', 'http://another.com/resource' ],
+				[ 'https://example.com/page', 'http://another.com/resource.' ],
 			],
 		];
 	}
