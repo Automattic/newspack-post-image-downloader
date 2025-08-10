@@ -397,7 +397,7 @@ class Downloader {
 			// Get all URLs, or just image `src`s.
 			$urls = $include_non_image_urls
 				? $this->get_all_urls_from_html( $post_content )
-				: $this->get_all_img_srcs( $post_content );
+				: $this->get_all_img_srcs_from_html( $post_content );
 			if ( empty( $urls ) ) {
 				continue;
 			}
@@ -1596,13 +1596,13 @@ class Downloader {
 	}
 
 	/**
-	 * Gets all the unique `<img>` `src` attributes in post.
+	 * Gets all the unique <img> `src` and `srcset` URLs from HTML.
 	 *
 	 * @param string $html HTML.
 	 *
 	 * @return array
 	 */
-	private function get_all_img_srcs( $html ) {
+	public function get_all_img_srcs_from_html( $html ) {
 		$img_srcs = [];
 
 		$crawler = ( new Crawler( $html ) )->filter( 'img' );
@@ -1620,14 +1620,14 @@ class Downloader {
 			// Extract srcset attribute and parse individual URLs.
 			$srcset = $node->attr( 'srcset' );
 			if ( ! empty( $srcset ) ) {
-				$srcset_urls = $this->extract_urls_from_srcset( $srcset );
+				$srcset_urls = $this->get_urls_from_srcset( $srcset );
 				$img_srcs    = array_merge( $img_srcs, $srcset_urls );
 			}
 
 			// Extract data-srcset attribute and parse individual URLs.
 			$data_srcset = $node->attr( 'data-srcset' );
 			if ( ! empty( $data_srcset ) ) {
-				$data_srcset_urls = $this->extract_urls_from_srcset( $data_srcset );
+				$data_srcset_urls = $this->get_urls_from_srcset( $data_srcset );
 				$img_srcs         = array_merge( $img_srcs, $data_srcset_urls );
 			}
 		}
@@ -1646,10 +1646,10 @@ class Downloader {
 	}
 
 	/**
-	 * Gets unique and valid (supported absolute and root-relative) URLs from HTML.
-	 * 
-	 * First fetches URLs from various DOM attributes, and then additionally extracts just absolute URLs from text content.
-	 * This hybrid approach optimizes for accuracy and relevance.
+	 * Gets unique URLs from HTML.
+	 * Supported URL types are absolute, root-relative (e.g. `/path/to/image.jpg`) and protocol-relative (e.g. `//example.com/path/to/image.jpg`), but not `data` B64 or page-relative URLs (e.g. `../page/image.jpg`).
+	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
+	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
 	 *
 	 * @param string $html HTML.
 	 *
@@ -1690,7 +1690,7 @@ class Downloader {
 				function ( $node ) use ( &$urls, $attribute ) {
 					$srcset = $node->attr( $attribute );
 					// Parse srcset to extract individual URLs.
-					$urls = array_merge( $urls, $this->extract_urls_from_srcset( $srcset ) );
+					$urls = array_merge( $urls, $this->get_urls_from_srcset( $srcset ) );
 				}
 			);
 		}
@@ -1698,7 +1698,7 @@ class Downloader {
 		/**
 		 * Then additionally extract just the absolute URLs from entire HTML text.
 		 */
-		$urls = array_merge( $urls, $this->extract_absolute_urls_from_text( $html ) );
+		$urls = array_merge( $urls, $this->get_absolute_urls_from_text( $html ) );
 
 		// Clean up results.
 		$urls = array_unique( $urls );
@@ -1725,12 +1725,33 @@ class Downloader {
 	}
 
 	/**
+	 * Extracts only absolute URLs from plain text content.
+	 *
+	 * @param string $text The text content.
+	 * @return array Array of absolute URLs.
+	 */
+	public function get_absolute_urls_from_text( string $text ): array {
+		$urls = [];
+		if ( empty( $text ) ) {
+			return $urls;
+		}
+
+		// Match only absolute URLs (http/https).
+		preg_match_all( '/https?:\/\/[^\s"<>]+/i', $text, $matches );
+		if ( isset( $matches[0] ) ) {
+			$urls = array_merge( $urls, $matches[0] );
+		}
+
+		return $urls;
+	}
+
+	/**
 	 * Extract URLs from srcset attribute.
 	 *
 	 * @param string $srcset The srcset attribute value.
 	 * @return array Array of URLs.
 	 */
-	private function extract_urls_from_srcset( string $srcset ): array {
+	public function get_urls_from_srcset( string $srcset ): array {
 		$urls = [];
 		if ( empty( $srcset ) ) {
 			return $urls;
@@ -1751,27 +1772,6 @@ class Downloader {
 	}
 
 	/**
-	 * Extracts only absolute URLs from plain text content.
-	 *
-	 * @param string $text The text content.
-	 * @return array Array of absolute URLs.
-	 */
-	private function extract_absolute_urls_from_text( string $text ): array {
-		$urls = [];
-		if ( empty( $text ) ) {
-			return $urls;
-		}
-
-		// Match only absolute URLs (http/https).
-		preg_match_all( '/https?:\/\/[^\s"<>]+/i', $text, $matches );
-		if ( isset( $matches[0] ) ) {
-			$urls = array_merge( $urls, $matches[0] );
-		}
-
-		return $urls;
-	}
-
-	/**
 	 * Attempts to determine image file extension from the mime encoding of the image file.
 	 * 
 	 * Note, this method was previously used, presently discontinued, but could again be used in the future.
@@ -1780,7 +1780,7 @@ class Downloader {
 	 *
 	 * @return string|null Image format extension, no dot.
 	 */
-	private function get_image_extension_from_binary_file( $filename ) {
+	public function get_image_extension_from_binary_file( $filename ) {
 		$extension = null;
 
 		$mime_type       = ( new \finfo( FILEINFO_MIME ) )->file( $filename );
