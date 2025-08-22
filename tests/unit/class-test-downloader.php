@@ -38,11 +38,11 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Plain absolute HTTP src. No other params.
 	 */
 	public function test_absolute_src_no_local_images_folder() {
-		$src                           = 'http://host.com/path/img.jpg';
-		$folder_local_images           = null;
-		$default_image_host_and_schema = null;
+		$src                     = 'http://host.com/path/img.jpg';
+		$folder_local_images     = null;
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $src, $img_import_path );
 	}
@@ -51,11 +51,11 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Plain absolute HTTP src. Path to folder with local images is provided, but the image file is not found there.
 	 */
 	public function test_absolute_src_no_local_file() {
-		$src                           = 'http://host.com/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = null;
+		$src                     = 'http://host.com/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $src, $img_import_path );
 	}
@@ -64,28 +64,28 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Plain absolute HTTP src. Path to folder with local images is provided, and the image file is found locally.
 	 */
 	public function test_absolute_src_with_local_file() {
-		$src                           = 'http://host.com/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = null;
-		$local_file                    = $folder_local_images . '/path/img.jpg';
+		$src                     = 'http://host.com/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = null;
+		$local_file              = $folder_local_images . '/path/img.jpg';
 
 		// Get partial mock for Downloader::file_exists method, to avoid writing to disk.
 		$partial_mock = $this->create_downloader_partial_mock_with_file_exists_method( $local_file, true );
 
-		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $local_file, $img_import_path );
 	}
 
 	/**
-	 * Relative reference to host root. But a WP_Error gets returned if the $default_image_host_and_schema param is not provided.
+	 * Relative reference to host root. But a WP_Error gets returned if the $default_host_and_schema param is not provided.
 	 */
 	public function test_relative_ref_to_root_src_no_local_images_folder_returns_wp_error() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = null;
-		$default_image_host_and_schema = null;
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = null;
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertInstanceOf( WP_Error::class, $img_import_path );
 	}
@@ -94,41 +94,41 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Relative reference to host root. All needed params are provided, but the image file is not found there.
 	 */
 	public function test_relative_ref_to_root_src_no_local_file() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
-		$this->assertSame( $default_image_host_and_schema . $src, $img_import_path );
+		$this->assertSame( $default_host_and_schema . $src, $img_import_path );
 	}
 
 	/**
 	 * Relative reference to host root. The image file is found locally.
 	 */
 	public function test_relative_ref_to_root_src_with_local_file() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
-		$local_file                    = $folder_local_images . '/path/img.jpg';
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
+		$local_file              = $folder_local_images . '/path/img.jpg';
 
 		// Get partial mock for Downloader::file_exists method, to avoid writing to disk.
 		$partial_mock = $this->create_downloader_partial_mock_with_file_exists_method( $local_file, true );
 
-		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $local_file, $img_import_path );
 	}
 
 	/**
-	 * Relative reference src. But a WP_Error gets returned if the $default_image_host_and_schema param is not provided.
+	 * Relative reference src. But a WP_Error gets returned if the $default_host_and_schema param is not provided.
 	 */
 	public function test_relative_ref_src_no_local_images_folder_returns_wp_error() {
-		$src                           = 'path/img.jpg';
-		$folder_local_images           = null;
-		$default_image_host_and_schema = null;
+		$src                     = 'path/img.jpg';
+		$folder_local_images     = null;
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertInstanceOf( WP_Error::class, $img_import_path );
 	}
@@ -137,28 +137,28 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Relative reference src. All needed params are provided, but the image file is not found there.
 	 */
 	public function test_relative_ref_src_no_local_file() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
-		$this->assertSame( $default_image_host_and_schema . $src, $img_import_path );
+		$this->assertSame( $default_host_and_schema . $src, $img_import_path );
 	}
 
 	/**
 	 * Relative reference src. The image file is found locally.
 	 */
 	public function test_relative_ref_src_with_local_file() {
-		$src                           = 'path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
-		$local_file                    = $folder_local_images . '/path/img.jpg';
+		$src                     = 'path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
+		$local_file              = $folder_local_images . '/path/img.jpg';
 
 		// Get partial mock for Downloader::file_exists method, to avoid writing to disk.
 		$partial_mock = $this->create_downloader_partial_mock_with_file_exists_method( $local_file, true );
 
-		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $local_file, $img_import_path );
 	}
