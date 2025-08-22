@@ -99,3 +99,5 @@ Or even (temporarily) set the following constant in your `wp-config.php`
 ```php
 define( 'ALLOW_UNFILTERED_UPLOADS', true );
 ```
+
+** DISCLAIMER: This plugin destructively modifies your site's content by downloading and replacing external URLs with local media library attachments. Use this plugin at your own risk and responsibility. The authors are not responsible for any data loss, site issues, or other consequences resulting from the use of this plugin.**
