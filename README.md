@@ -36,7 +36,7 @@ Optional. Alternatively, you can specify hosts not to download images from, and 
 
 ### -- skip (exclude) relative URLs from downloading
 
-Optional. Unless `--do-not-download-root-relative-urls` and `--do-not-download-protocol-relative-urls` flags are set, the command will automatically download relative image URLs by prepending the `--default-image-host-and-schema` or `https:` protocol to them.
+Optional. Unless `--do-not-download-root-relative-urls` and `--do-not-download-protocol-relative-urls` flags are set, the command will automatically download relative image URLs by prepending the `--default-host-and-schema` or `https:` protocol to them.
 
 ### -- full-size image downloading
 
@@ -60,7 +60,7 @@ To speed up downloading, you could even run several commands in parallel by spli
 
 ### -- downloads absolute or relative referenced URIs
 
-Besides downloading images from fully qualified/absolute URLs, e.g. `https://host.com/img.jpg`, the plugin can download relative URLs if you provide the CLI param `--default-image-host-and-schema=https://example-host.com`.
+Besides downloading images from fully qualified/absolute URLs, e.g. `https://host.com/img.jpg`, the plugin can download relative URLs if you provide the CLI param `--default-host-and-schema=https://example-host.com`.
 
 ### -- custom post type and post status selection
 
@@ -100,4 +100,4 @@ Or even (temporarily) set the following constant in your `wp-config.php`
 define( 'ALLOW_UNFILTERED_UPLOADS', true );
 ```
 
-** DISCLAIMER: This plugin destructively modifies your site's content by downloading and replacing external URLs with local media library attachments. Use this plugin at your own risk and responsibility. The authors are not responsible for any data loss, site issues, or other consequences resulting from the use of this plugin.**
+** DISCLAIMER: This plugin destructively modifies your site's content by downloading and replacing external URLs from the post content with local media library attachments. Use this plugin at your own risk and responsibility. The authors are not responsible for any data loss, site issues, or other consequences resulting from the use of this plugin.**
