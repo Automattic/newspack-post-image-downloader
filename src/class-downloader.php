@@ -258,7 +258,7 @@ class Downloader {
 					[
 						'type'        => 'assoc',
 						'name'        => 'extensions',
-						'description' => 'Extensions to download. E.g. --extensions=pdf,docx,xlsx,pptx',
+						'description' => 'Extensions to download, case insensitive. E.g. --extensions=pdf,docx,xlsx,pptx',
 						'optional'    => false,
 						'repeating'   => false,
 					],
@@ -364,12 +364,12 @@ class Downloader {
 		}
 		
 		// Prepare the CSV file.
-		$csv_file = __FUNCTION__ . '__urls' . ( $include_non_image_urls ? '_all' : '_images' ) . '.csv';
+		$csv_file = __FUNCTION__ . '.csv';
 		if ( $this->file_exists( $csv_file ) ) {
 			unlink( $csv_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 		}
 		$csv_file_handle = fopen( $csv_file, 'w' ); // phpcs:ignore -- WordPress.WP.AlternativeFunctions.file_system_operations_fopen.
-		fputcsv( $csv_file_handle, [ 'post_id', 'hostname', 'extension', 'url' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+		fputcsv( $csv_file_handle, [ 'post_id', 'hostname', 'extension', 'url' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 		// Get post IDs.
 		$post_ids = $this->get_post_ids( $post_ids_specific, $post_id_from, $post_id_to, $post_types, $post_statuses );
@@ -390,7 +390,6 @@ class Downloader {
 
 			$post_content = $this->get_post_content( $post_id );
 			if ( ! $post_content ) {
-				$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::WARNING, sprintf( '⚠️ Could not fetch content for post ID %d', $post_id ) );
 				continue;
 			}
 
@@ -420,7 +419,7 @@ class Downloader {
 					$url_check = 'https:' . $url;
 				} else {
 					// Unsupported URL, like `src="data:image/svg+xml;base64"` or invalid URLs.
-					fputcsv( $csv_file_handle, [ $post_id, 'N/A', 'N/A', $url ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+					fputcsv( $csv_file_handle, [ $post_id, '', '', $url ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 					continue;
 				}
 
@@ -432,7 +431,7 @@ class Downloader {
 				$extension = $this->get_url_extension( $url_check );
 
 				// Add to CSV.
-				fputcsv( $csv_file_handle, [ $post_id, ! empty( $hostname ) ? $hostname : 'N/A', ! empty( $extension ) ? $extension : 'NO_EXTENSION', $url ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+				fputcsv( $csv_file_handle, [ $post_id, $hostname, $extension, $url, ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 				// Add to quick CLI output variable.
 				if ( ! empty( $hostname ) && ! in_array( $hostname, $cli_quick_output['hostnames'] ) ) {
@@ -451,7 +450,7 @@ class Downloader {
 		if ( count( $cli_quick_output['hostnames'] ) > 0 ) {
 			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '- %s', implode( "\n- ", $cli_quick_output['hostnames'] ) ) );
 		}
-		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total URL extensions', count( $cli_quick_output['extensions'] ) ) );
+		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total URL extensions -- note that technically extension is everything after the last dot, so use the following list to determine which ones are valid ', count( $cli_quick_output['extensions'] ) ) );
 		if ( count( $cli_quick_output['extensions'] ) > 0 ) {
 			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '- %s', implode( ', ', $cli_quick_output['extensions'] ) ) );
 		}
@@ -501,7 +500,7 @@ class Downloader {
 			unlink( $csv_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 		}
 		$csv_file_handle = fopen( $csv_file, 'w' ); // phpcs:ignore -- WordPress.WP.AlternativeFunctions.file_system_operations_fopen.
-		fputcsv( $csv_file_handle, [ 'post_id', 'url_original', 'attachment_id', 'url_downloaded' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+		fputcsv( $csv_file_handle, [ 'post_id', 'url_original', 'attachment_id', 'url_downloaded' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 		global $wpdb;
 		$time_start        = microtime( true );
@@ -682,7 +681,7 @@ class Downloader {
 							$attachment_id = $attachments_logic->import_external_file( $img_import_path, $title_to_use, null, null, $alt_to_use, $post_id );
 							if ( is_wp_error( $attachment_id ) ) {
 								// CSV, log error.
-								fputcsv( $csv_file_handle, [ $post_id, $src_ranked, sprintf( 'ERROR: %s', $attachment_id->get_error_message() ), '' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+								fputcsv( $csv_file_handle, [ $post_id, $src_ranked, sprintf( 'ERROR: %s', $attachment_id->get_error_message() ), '' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 								$this->log(
 									self::LOG_OUTPUTS['CLI_AND_FILE'],
@@ -719,7 +718,7 @@ class Downloader {
 							}
 
 							// CSV, add the imported image to the CSV file.
-							fputcsv( $csv_file_handle, [ $post_id, $src_ranked, $attachment_id, $attachment_url ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+							fputcsv( $csv_file_handle, [ $post_id, $src_ranked, $attachment_id, $attachment_url ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 						} else {
 							// Dry run.
 							$imported        = true;
@@ -766,7 +765,7 @@ class Downloader {
 							// Handle error.
 							if ( is_wp_error( $downloaded ) ) {
 								// CSV, log error.
-								fputcsv( $csv_file_handle, [ $post_id, $src_ranked, sprintf( 'ERROR: %s', $downloaded->get_error_message() ), '' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+								fputcsv( $csv_file_handle, [ $post_id, $src_ranked, sprintf( 'ERROR: %s', $downloaded->get_error_message() ), '' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 								$this->log(
 									self::LOG_OUTPUTS['CLI_AND_FILE'],
@@ -789,7 +788,7 @@ class Downloader {
 							}
 							
 							// CSV, add the imported image to the CSV file.
-							fputcsv( $csv_file_handle, [ $post_id, $src_ranked, '', $downloaded_url ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+							fputcsv( $csv_file_handle, [ $post_id, $src_ranked, '', $downloaded_url ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 							$this->log(
 								self::LOG_OUTPUTS['CLI_AND_FILE'],
@@ -908,7 +907,7 @@ class Downloader {
 			unlink( $csv_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 		}
 		$csv_file_handle = fopen( $csv_file, 'w' ); // phpcs:ignore -- WordPress.WP.AlternativeFunctions.file_system_operations_fopen.
-		fputcsv( $csv_file_handle, [ 'post_id', 'url_original', 'attachment_id', 'url_downloaded' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+		fputcsv( $csv_file_handle, [ 'post_id', 'url_original', 'result', 'attachment_id', 'url_downloaded' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 		global $wpdb;
 		$time_start        = microtime( true );
@@ -1039,7 +1038,7 @@ class Downloader {
 				$attachment_id = ! $dry_run ? $attachments_logic->import_external_file( $file_import_path, $title, null, null, null, $post_id ) : 'N/A';
 				if ( is_wp_error( $attachment_id ) ) {
 					// CSV, log error.
-					fputcsv( $csv_file_handle, [ $post_id, $url, sprintf( 'ERROR: %s', $attachment_id->get_error_message() ), '' ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+					fputcsv( $csv_file_handle, [ $post_id, $url, sprintf( "Error downloading '%s': %s", $file_import_path, $attachment_id->get_error_message() ), '', '' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 					$this->log(
 						self::LOG_OUTPUTS['CLI_AND_FILE'],
@@ -1068,7 +1067,7 @@ class Downloader {
 				$post_content_updated = str_replace( $url, $url_imported, $post_content_updated );
 
 				// CSV, add the imported file to the CSV file.
-				fputcsv( $csv_file_handle, [ $post_id, $url, $attachment_id, $url_imported ] ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+				fputcsv( $csv_file_handle, [ $post_id, $url, 'success', $attachment_id, $url_imported ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 			}
 
 			// Update the Post content.
