@@ -151,7 +151,7 @@ class Downloader {
 					],
 					[
 						'type'        => 'assoc',
-						'name'        => 'default-image-host-and-schema',
+						'name'        => 'default-host-and-schema',
 						'description' => 'Used for relative URLs, provide th full schema and hostname where to download these from, e.g. `https://defaulthost.com`.',
 						'optional'    => true,
 						'repeating'   => false,
@@ -166,7 +166,7 @@ class Downloader {
 					[
 						'type'        => 'flag',
 						'name'        => 'do-not-download-root-relative-urls',
-						'description' => 'Unless this flag is set, the command will automatically download root-relative image URLs (e.g. `/wp-content/uploads/image.jpg`) by prepending the --default-image-host-and-schema to them.',
+						'description' => 'Unless this flag is set, the command will automatically download root-relative image URLs (e.g. `/wp-content/uploads/image.jpg`) by prepending the --default-host-and-schema to them.',
 						'optional'    => true,
 						'repeating'   => false,
 					],
@@ -265,7 +265,7 @@ class Downloader {
 					[
 						'type'        => 'flag',
 						'name'        => 'do-not-download-root-relative-urls',
-						'description' => 'Unless this flag is set, the command will automatically download root-relative image URLs (e.g. `/wp-content/uploads/image.jpg`) by prepending the --default-image-host-and-schema to them.',
+						'description' => 'Unless this flag is set, the command will automatically download root-relative image URLs (e.g. `/wp-content/uploads/image.jpg`) by prepending the --default-host-and-schema to them.',
 						'optional'    => true,
 						'repeating'   => false,
 					],
@@ -477,7 +477,7 @@ class Downloader {
 		$post_id_to                             = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
 		$hosts_excluded                         = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
 		$only_download_from_hosts               = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
-		$default_image_host_and_schema          = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
+		$default_host_and_schema                = isset( $assoc_args['default-host-and-schema'] ) ? rtrim( $assoc_args['default-host-and-schema'], '/' ) : null;
 		$folder_local_files                     = isset( $assoc_args['folder-local-files'] ) ? rtrim( $assoc_args['folder-local-files'], '/' ) : null;
 
 		$this->init_loggers( __FUNCTION__ );
@@ -491,6 +491,10 @@ class Downloader {
 		}
 		if ( $only_download_from_hosts && $hosts_excluded ) {
 			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ When providing the `--only-download-from-hosts` param, do not use the `--exclude-hosts` at the same time.' );
+			exit;
+		}
+		if ( ! $do_not_download_root_relative_urls && ! $default_host_and_schema ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ When downloading root relative URLs (will be downloaded by default unless `--do-not-download-root-relative-urls` param is used), you must also provide the `--default-host-and-schema` param.' );
 			exit;
 		}
 
@@ -590,8 +594,8 @@ class Downloader {
 
 				// Filter `src` by host.
 				if ( $only_download_from_hosts ) {
-					// Skip if relative URL host (--default-image-host-and-schema) does not match $only_download_from_hosts.
-					if ( $is_root_relative && ! $this->does_uri_match_host( $default_image_host_and_schema, $only_download_from_hosts ) ) {
+					// Skip if relative URL host (--default-host-and-schema) does not match $only_download_from_hosts.
+					if ( $is_root_relative && ! $this->does_uri_match_host( $default_host_and_schema, $only_download_from_hosts ) ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping root-relative URL, off target host '%s'", $src ), [ 'post_id' => $post_id ] );
 						continue;
 					} elseif ( $is_protocol_relative && ! $this->does_uri_match_host( 'https:' . $src, $only_download_from_hosts ) ) {
@@ -605,7 +609,7 @@ class Downloader {
 					}
 				} elseif ( $hosts_excluded ) {
 					// Skip if relative URL host matches $hosts_excluded.
-					if ( $is_root_relative && $this->does_uri_match_host( $default_image_host_and_schema, $hosts_excluded ) ) {
+					if ( $is_root_relative && $this->does_uri_match_host( $default_host_and_schema, $hosts_excluded ) ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping root-relative URL, excluded host '%s'", $src ), [ 'post_id' => $post_id ] );
 						continue;
 					} elseif ( $is_protocol_relative && $this->does_uri_match_host( 'https:' . $src, $hosts_excluded ) ) {
@@ -650,7 +654,7 @@ class Downloader {
 				foreach ( $srcs_ranked as $key_src_ranked => $src_ranked ) {
 
 					// Get the fully qualified import path of this ranked src file (either from local folder, or from remote URL).
-					$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_files, $default_image_host_and_schema );
+					$img_import_path = $this->get_fully_qualified_img_import_or_download_path( $src_ranked, $folder_local_files, $default_host_and_schema );
 					if ( is_wp_error( $img_import_path ) ) {
 						$this->log(
 							self::LOG_OUTPUTS['CLI_AND_FILE'],
@@ -727,7 +731,7 @@ class Downloader {
 							$this->log(
 								self::LOG_OUTPUTS['CLI'],
 								LogLevel::INFO,
-								sprintf( "[Dry Run] Imported src '%s' as attachment ID '%d'", $src_ranked, is_int( $attachment_id ) ? $attachment_id : 'N/A' ),
+								sprintf( "[Dry Run] Imported src '%s' as attachment ID '%s'", $src_ranked, 'dry_run' ),
 								[
 									'post_id' => $post_id,
 									'src'     => $src_ranked,
@@ -880,7 +884,7 @@ class Downloader {
 		$post_id_to                             = isset( $assoc_args['post-id-to'] ) ? (int) $assoc_args['post-id-to'] : null;
 		$hosts_excluded                         = isset( $assoc_args['exclude-hosts'] ) ? explode( ',', $assoc_args['exclude-hosts'] ) : null;
 		$only_download_from_hosts               = isset( $assoc_args['only-download-from-hosts'] ) ? explode( ',', $assoc_args['only-download-from-hosts'] ) : null;
-		$default_image_host_and_schema          = isset( $assoc_args['default-image-host-and-schema'] ) ? rtrim( $assoc_args['default-image-host-and-schema'], '/' ) : null;
+		$default_host_and_schema                = isset( $assoc_args['default-host-and-schema'] ) ? rtrim( $assoc_args['default-host-and-schema'], '/' ) : null;
 		$folder_local_files                     = isset( $assoc_args['folder-local-files'] ) ? rtrim( $assoc_args['folder-local-files'], '/' ) : null;
 
 		$this->init_loggers( __FUNCTION__ );
@@ -900,9 +904,13 @@ class Downloader {
 			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ When providing the `--only-download-from-hosts` param, do not use the `--exclude-hosts` at the same time.' );
 			exit;
 		}
+		if ( ! $do_not_download_root_relative_urls && ! $default_host_and_schema ) {
+			$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::ERROR, '❗ When downloading root relative URLs (will be downloaded by default unless `--do-not-download-root-relative-urls` param is used), you must also provide the `--default-host-and-schema` param.' );
+			exit;
+		}
 
 		// Prepare the CSV file.
-		$csv_file = __FUNCTION__ . '__downloaded.csv';
+		$csv_file = __FUNCTION__ . '.csv';
 		if ( $this->file_exists( $csv_file ) ) {
 			unlink( $csv_file ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_unlink.
 		}
@@ -945,7 +953,7 @@ class Downloader {
 				$this->log( self::LOG_OUTPUTS['CLI'], LogLevel::WARNING, sprintf( 'No post content in post ID %d, skipping...', $post_id ) );
 				continue;
 			}
-			MemoryCleanupHook::cleanup( 0, $key_post + 1, 10 );
+			MemoryCleanupHook::cleanup();
 
 			// Get all URLs with extensions from HTML.
 			$urls_all        = $this->get_all_urls_from_html( $post_content );
@@ -989,8 +997,8 @@ class Downloader {
 
 				// Filter URL by host.
 				if ( $only_download_from_hosts ) {
-					// Skip if root-relative URL host (--default-image-host-and-schema) does not match $only_download_from_hosts.
-					if ( $is_root_relative && ! $this->does_uri_match_host( $default_image_host_and_schema, $only_download_from_hosts ) ) {
+					// Skip if root-relative URL host (--default-host-and-schema) does not match $only_download_from_hosts.
+					if ( $is_root_relative && ! $this->does_uri_match_host( $default_host_and_schema, $only_download_from_hosts ) ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping root-relative URL, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
 						continue;
 					} elseif ( $is_protocol_relative && ! $this->does_uri_match_host( 'https:' . $url, $only_download_from_hosts ) ) {
@@ -1003,7 +1011,7 @@ class Downloader {
 					}
 				} elseif ( $hosts_excluded ) {
 					// Skip if root-relative URL host matches $hosts_excluded.
-					if ( $is_root_relative && $this->does_uri_match_host( $default_image_host_and_schema, $hosts_excluded ) ) {
+					if ( $is_root_relative && $this->does_uri_match_host( $default_host_and_schema, $hosts_excluded ) ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping root-relative URL, excluded host '%s'", $url ), [ 'post_id' => $post_id ] );
 						continue;
 					} elseif ( $is_protocol_relative && $this->does_uri_match_host( 'https:' . $url, $hosts_excluded ) ) {
@@ -1023,7 +1031,7 @@ class Downloader {
 				}
 
 				// Get the fully qualified import path of this file (either from local folder, or from remote URL).
-				$file_import_path = $this->get_fully_qualified_img_import_or_download_path( $url, $folder_local_files, $default_image_host_and_schema );
+				$file_import_path = $this->get_fully_qualified_img_import_or_download_path( $url, $folder_local_files, $default_host_and_schema );
 				if ( is_wp_error( $file_import_path ) ) {
 					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Error getting file path for '%s', error: %s", $url, $file_import_path->get_error_message() ), [ 'post_id' => $post_id ] );
 					continue;
@@ -1034,16 +1042,19 @@ class Downloader {
 				$filename_parts = pathinfo( $basename );
 				$title          = $filename_parts['filename'];
 
+				// Clean up memory.
+				MemoryCleanupHook::cleanup();
+
 				// Download the file.
-				$attachment_id = ! $dry_run ? $attachments_logic->import_external_file( $file_import_path, $title, null, null, null, $post_id ) : 'N/A';
+				$attachment_id = ! $dry_run ? $attachments_logic->import_external_file( $file_import_path, $title, null, null, null, $post_id ) : 'dry_run';
 				if ( is_wp_error( $attachment_id ) ) {
 					// CSV, log error.
-					fputcsv( $csv_file_handle, [ $post_id, $url, sprintf( "Error downloading '%s': %s", $file_import_path, $attachment_id->get_error_message() ), '', '' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+					fputcsv( $csv_file_handle, [ $post_id, $url, sprintf( "Error downloading '%s': (%s) %s", $file_import_path, $attachment_id->get_error_code(), $attachment_id->get_error_message() ), '', '' ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 
 					$this->log(
 						self::LOG_OUTPUTS['CLI_AND_FILE'],
 						LogLevel::ERROR,
-						sprintf( "❗ Error importing file '%s', error: %s", $file_import_path, $attachment_id->get_error_message() ),
+						sprintf( "❗ Error importing file '%s', error: (%s) %s", $file_import_path, $attachment_id->get_error_code(), $attachment_id->get_error_message() ),
 						[
 							'url'     => $url,
 							'post_id' => $post_id,
@@ -1063,7 +1074,7 @@ class Downloader {
 				);
 
 				// Replace $url with imported URL.
-				$url_imported         = ! $dry_run ? wp_get_attachment_url( $attachment_id ) : 'n/a';
+				$url_imported         = ! $dry_run ? wp_get_attachment_url( $attachment_id ) : 'dry_run';
 				$post_content_updated = str_replace( $url, $url_imported, $post_content_updated );
 
 				// CSV, add the imported file to the CSV file.
@@ -1334,15 +1345,15 @@ class Downloader {
 	 * Returns a full image path to import or download from. If a local image file is available, returns the full path to the file,
 	 * or else returns a fully qualified HTTP path to download from.
 	 *
-	 * @param string $src                           Img `src` URI.
-	 * @param string $folder_local_files            Path to local folder where image files can be found at.
-	 * @param string $default_image_host_and_schema Default schema+host used to download relative referenced URLs.
-	 *                                              e.g. if you provide the value 'https://dl_host`, it will attempt to download.
-	 *                                              a relative `src="/path/img.jpg"` from 'https://dl_host/path/img.jpg'.
+	 * @param string $src                     Img `src` URI.
+	 * @param string $folder_local_files      Path to local folder where image files can be found at.
+	 * @param string $default_host_and_schema Default schema+host used to download relative referenced URLs.
+	 *                                        e.g. if you provide the value 'https://dl_host`, it will attempt to download.
+	 *                                        a relative `src="/path/img.jpg"` from 'https://dl_host/path/img.jpg'.
 	 *
 	 * @return string|WP_Error Either a full path to a local image file, or a fully qualified HTTP path to download the image from.
 	 */
-	public function get_fully_qualified_img_import_or_download_path( $src, $folder_local_files = null, $default_image_host_and_schema = null ): string|WP_Error {
+	public function get_fully_qualified_img_import_or_download_path( $src, $folder_local_files = null, $default_host_and_schema = null ): string|WP_Error {
 		$img_import_path = null;
 
 		// Get the path (without host), and remove possible query params.
@@ -1372,7 +1383,7 @@ class Downloader {
 		 * Handles three types of `src`s like this:
 		 *      - an absolute HTTP URL, e.g. 'https://host.com/img.jpg'
 		 *      - a protocol-relative URL, e.g. '//cdn.host.com/img.jpg'
-		 *      - a relative reference from root, e.g. '/segment/img.jpg', and uses the `--default-image-host-and-schema` to try
+		 *      - a relative reference from root, e.g. '/segment/img.jpg', and uses the `--default-host-and-schema` to try
 		 *        and download it
 		 */
 		$is_absolute          = $this->is_url_absolute( $src );
@@ -1387,15 +1398,15 @@ class Downloader {
 			// Transform protocol-relative URL to absolute URL.
 			$img_import_path = 'https:' . $src;
 		} elseif ( $is_root_relative ) {
-			if ( ! $default_image_host_and_schema ) {
+			if ( ! $default_host_and_schema ) {
 				return new WP_Error(
 					'no_default_host_provided',
-					sprintf( "Could not download relative src '%s' since --default-image-host-and-schema was not provided.", esc_url( $src ) ),
+					sprintf( "Could not download relative src '%s' since --default-host-and-schema was not provided.", esc_url( $src ) ),
 					wp_json_encode( [ 'src' => $src ] )
 				);
 			}
-			// Use the `--default-image-host-and-schema` to try and download a root-relative URL.
-			$img_import_path = $default_image_host_and_schema
+			// Use the `--default-host-and-schema` to try and download a root-relative URL.
+			$img_import_path = $default_host_and_schema
 				. ( ( 0 !== strpos( strtolower( $src ), '/' ) ) ? '/' : '' )
 				. $src;
 		} else {
