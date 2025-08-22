@@ -38,11 +38,11 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Plain absolute HTTP src. No other params.
 	 */
 	public function test_absolute_src_no_local_images_folder() {
-		$src                           = 'http://host.com/path/img.jpg';
-		$folder_local_images           = null;
-		$default_image_host_and_schema = null;
+		$src                     = 'http://host.com/path/img.jpg';
+		$folder_local_images     = null;
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $src, $img_import_path );
 	}
@@ -51,11 +51,11 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Plain absolute HTTP src. Path to folder with local images is provided, but the image file is not found there.
 	 */
 	public function test_absolute_src_no_local_file() {
-		$src                           = 'http://host.com/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = null;
+		$src                     = 'http://host.com/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $src, $img_import_path );
 	}
@@ -64,28 +64,28 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Plain absolute HTTP src. Path to folder with local images is provided, and the image file is found locally.
 	 */
 	public function test_absolute_src_with_local_file() {
-		$src                           = 'http://host.com/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = null;
-		$local_file                    = $folder_local_images . '/path/img.jpg';
+		$src                     = 'http://host.com/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = null;
+		$local_file              = $folder_local_images . '/path/img.jpg';
 
 		// Get partial mock for Downloader::file_exists method, to avoid writing to disk.
 		$partial_mock = $this->create_downloader_partial_mock_with_file_exists_method( $local_file, true );
 
-		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $local_file, $img_import_path );
 	}
 
 	/**
-	 * Relative reference to host root. But a WP_Error gets returned if the $default_image_host_and_schema param is not provided.
+	 * Relative reference to host root. But a WP_Error gets returned if the $default_host_and_schema param is not provided.
 	 */
 	public function test_relative_ref_to_root_src_no_local_images_folder_returns_wp_error() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = null;
-		$default_image_host_and_schema = null;
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = null;
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertInstanceOf( WP_Error::class, $img_import_path );
 	}
@@ -94,41 +94,41 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Relative reference to host root. All needed params are provided, but the image file is not found there.
 	 */
 	public function test_relative_ref_to_root_src_no_local_file() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
-		$this->assertSame( $default_image_host_and_schema . $src, $img_import_path );
+		$this->assertSame( $default_host_and_schema . $src, $img_import_path );
 	}
 
 	/**
 	 * Relative reference to host root. The image file is found locally.
 	 */
 	public function test_relative_ref_to_root_src_with_local_file() {
-		$src                           = '/path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
-		$local_file                    = $folder_local_images . '/path/img.jpg';
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
+		$local_file              = $folder_local_images . '/path/img.jpg';
 
 		// Get partial mock for Downloader::file_exists method, to avoid writing to disk.
 		$partial_mock = $this->create_downloader_partial_mock_with_file_exists_method( $local_file, true );
 
-		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $local_file, $img_import_path );
 	}
 
 	/**
-	 * Relative reference src. But a WP_Error gets returned if the $default_image_host_and_schema param is not provided.
+	 * Relative reference src. But a WP_Error gets returned if the $default_host_and_schema param is not provided.
 	 */
 	public function test_relative_ref_src_no_local_images_folder_returns_wp_error() {
-		$src                           = 'path/img.jpg';
-		$folder_local_images           = null;
-		$default_image_host_and_schema = null;
+		$src                     = 'path/img.jpg';
+		$folder_local_images     = null;
+		$default_host_and_schema = null;
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertInstanceOf( WP_Error::class, $img_import_path );
 	}
@@ -137,28 +137,28 @@ class Test_Downloader extends WP_UnitTestCase {
 	 * Relative reference src. All needed params are provided, but the image file is not found there.
 	 */
 	public function test_relative_ref_src_no_local_file() {
-		$src                           = 'path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
+		$src                     = '/path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
 
-		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $this->downloader->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
-		$this->assertSame( $default_image_host_and_schema . '/' . $src, $img_import_path );
+		$this->assertSame( $default_host_and_schema . $src, $img_import_path );
 	}
 
 	/**
 	 * Relative reference src. The image file is found locally.
 	 */
 	public function test_relative_ref_src_with_local_file() {
-		$src                           = 'path/img.jpg';
-		$folder_local_images           = '/tmp/mock';
-		$default_image_host_and_schema = 'https://deault/download/from';
-		$local_file                    = $folder_local_images . '/path/img.jpg';
+		$src                     = 'path/img.jpg';
+		$folder_local_images     = '/tmp/mock';
+		$default_host_and_schema = 'https://deault/download/from';
+		$local_file              = $folder_local_images . '/path/img.jpg';
 
 		// Get partial mock for Downloader::file_exists method, to avoid writing to disk.
 		$partial_mock = $this->create_downloader_partial_mock_with_file_exists_method( $local_file, true );
 
-		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_image_host_and_schema );
+		$img_import_path = $partial_mock->get_fully_qualified_img_import_or_download_path( $src, $folder_local_images, $default_host_and_schema );
 
 		$this->assertSame( $local_file, $img_import_path );
 	}
@@ -225,6 +225,123 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests the `get_all_img_srcs_from_html` function.
+	 *
+	 * @dataProvider providerGetAllImgSrcsFromHtml
+	 *
+	 * @param string $html            The HTML content to parse.
+	 * @param array  $result_expected The expected array of image src URLs.
+	 */
+	public function test_get_all_img_srcs_from_html( $html, $result_expected ) {
+		$result_actual = $this->downloader->get_all_img_srcs_from_html( $html );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `get_all_urls_from_html` function.
+	 *
+	 * @dataProvider providerGetAllUrlsFromHtml
+	 *
+	 * @param string $html            The HTML content to parse.
+	 * @param array  $result_expected The expected array of URLs.
+	 */
+	public function test_get_all_urls_from_html( $html, $result_expected ) {
+		$result_actual = $this->downloader->get_all_urls_from_html( $html );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `get_urls_from_srcset` function.
+	 *
+	 * @dataProvider providerGetUrlsFromSrcset
+	 *
+	 * @param string $srcset          The srcset attribute value.
+	 * @param array  $result_expected The expected array of URLs.
+	 */
+	public function test_get_urls_from_srcset( $srcset, $result_expected ) {
+		$result_actual = $this->downloader->get_urls_from_srcset( $srcset );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `get_absolute_urls_from_text` function.
+	 *
+	 * @dataProvider providerGetAbsoluteUrlsFromText
+	 *
+	 * @param string $text            The text content to parse.
+	 * @param array  $result_expected The expected array of absolute URLs.
+	 */
+	public function test_get_absolute_urls_from_text( $text, $result_expected ) {
+		$result_actual = $this->downloader->get_absolute_urls_from_text( $text );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `get_url_extension` function.
+	 *
+	 * @dataProvider providerGetUrlExtension
+	 *
+	 * @param string $url             The URL to extract extension from.
+	 * @param string $result_expected The expected file extension.
+	 */
+	public function test_get_url_extension( $url, $result_expected ) {
+		$result_actual = $this->downloader->get_url_extension( $url );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `is_url_absolute` function.
+	 *
+	 * @dataProvider providerIsUrlAbsolute
+	 *
+	 * @param string $url             The URL to test.
+	 * @param bool   $result_expected The expected result.
+	 */
+	public function test_is_url_absolute( $url, $result_expected ) {
+		$result_actual = $this->downloader->is_url_absolute( $url );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `is_url_root_relative` function.
+	 *
+	 * @dataProvider providerIsUrlRootRelative
+	 *
+	 * @param string $url             The URL to test.
+	 * @param bool   $result_expected The expected result.
+	 */
+	public function test_is_url_root_relative( $url, $result_expected ) {
+		$result_actual = $this->downloader->is_url_root_relative( $url );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `is_url_protocol_relative` function.
+	 *
+	 * @dataProvider providerIsUrlProtocolRelative
+	 *
+	 * @param string $url             The URL to test.
+	 * @param bool   $result_expected The expected result.
+	 */
+	public function test_is_url_protocol_relative( $url, $result_expected ) {
+		$result_actual = $this->downloader->is_url_protocol_relative( $url );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
+	 * Tests the `is_url_valid` function.
+	 *
+	 * @dataProvider providerIsUrlValid
+	 *
+	 * @param string $url             The URL to test.
+	 * @param bool   $result_expected The expected result.
+	 */
+	public function test_is_url_valid( $url, $result_expected ) {
+		$result_actual = $this->downloader->is_url_valid( $url );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
 	 * Creates a partial mock of the Downloader class, and mocks the `file_exists` method with expected input argument and response.
 	 * In case of a different input argument, mock will return null.
 	 *
@@ -252,15 +369,17 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Changes object's method accessibility to public.
+	 * Changes object's method accessibility to public and returns the reflection method.
 	 *
 	 * @param object $class_object Object whose method accessibility is changed.
 	 * @param string $method_name  Method name.
+	 * @return \ReflectionMethod The reflection method object.
 	 */
 	private function make_object_method_public( $class_object, $method_name ) {
 		$reflector = new ReflectionObject( $class_object );
 		$method    = $reflector->getMethod( $method_name );
 		$method->setAccessible( true );
+		return $method;
 	}
 
 	/**
@@ -327,37 +446,37 @@ class Test_Downloader extends WP_UnitTestCase {
 		return [
 			// E.g. 1. intermediate image: returns non-intermediate.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 			],
 			// E.g. 3. non-intermediate image: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 				null,
 			],
 			// E.g. 4. scaled image (not intermediate): returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 				null,
 			],
 			// E.g. 5. image with query params: returns non-intermediate without query.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar',
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 			],
 			// E.g. 6. image with spaces and query params: returns non-intermediate without query and trimmed.
 			[
-				'   https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar   ',
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'   https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg?foo=bar   ',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 			],
 			// E.g. 7. SVG image (should not match intermediate pattern): returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector-300x244.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 			],
 			// E.g. 8. non-intermediate SVG: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 				null,
 			],
 		];
@@ -372,47 +491,47 @@ class Test_Downloader extends WP_UnitTestCase {
 		return [
 			// E.g. 1. scaled image: returns non-scaled.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 			],
 			// E.g. 2. non-scaled image: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/regular_puppy.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/regular_puppy.jpg',
 				null,
 			],
 			// E.g. 3. scaled image with query params: returns non-scaled without query.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 			],
 			// E.g. 4. scaled image with spaces and query params: returns non-scaled without query and trimmed.
 			[
-				'   https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar   ',
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+				'   https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg?foo=bar   ',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 			],
 			// E.g. 5. scaled PNG image: returns non-scaled PNG.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/image-scaled.png',
-				'https://www.mysite.com/wp-content/uploads/2025/01/image.png',
+				'https://www.example.com/wp-content/uploads/2025/01/image-scaled.png',
+				'https://www.example.com/wp-content/uploads/2025/01/image.png',
 			],
 			// E.g. 6. scaled WebP image: returns non-scaled WebP.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/image-scaled.webp',
-				'https://www.mysite.com/wp-content/uploads/2025/01/image.webp',
+				'https://www.example.com/wp-content/uploads/2025/01/image-scaled.webp',
+				'https://www.example.com/wp-content/uploads/2025/01/image.webp',
 			],
 			// E.g. 7. scaled SVG image: returns non-scaled SVG.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector-scaled.svg',
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector-scaled.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 			],
 			// E.g. 8. non-scaled SVG: returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 				null,
 			],
 			// E.g. 9. intermediate image (not scaled): returns null.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				null,
 			],
 		];
@@ -427,10 +546,10 @@ class Test_Downloader extends WP_UnitTestCase {
 		return [
 			// Intermediate image.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
-					'src_non_intermediate' => 'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/kitten-300x244.jpg',
+					'src_non_intermediate' => 'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 					'src_non_scaled'       => null,
 					'title'                => '',
 					'alt'                  => '',
@@ -438,20 +557,20 @@ class Test_Downloader extends WP_UnitTestCase {
 			],
 			// Scaled image.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/huge_puppy-scaled.jpg',
 					'src_non_intermediate' => null,
-					'src_non_scaled'       => 'https://www.mysite.com/wp-content/uploads/2025/01/huge_puppy.jpg',
+					'src_non_scaled'       => 'https://www.example.com/wp-content/uploads/2025/01/huge_puppy.jpg',
 					'title'                => '',
 					'alt'                  => '',
 				],
 			],
 			// Non-intermediate, non-scaled image.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+				'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/kitten.jpg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/kitten.jpg',
 					'src_non_intermediate' => null,
 					'src_non_scaled'       => null,
 					'title'                => '',
@@ -460,9 +579,9 @@ class Test_Downloader extends WP_UnitTestCase {
 			],
 			// SVG intermediate.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector-300x244.svg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/vector-300x244.svg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/vector-300x244.svg',
 					'src_non_intermediate' => null,
 					'src_non_scaled'       => null,
 					'title'                => '',
@@ -471,14 +590,636 @@ class Test_Downloader extends WP_UnitTestCase {
 			],
 			// SVG non-intermediate.
 			[
-				'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+				'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 				[
-					'src'                  => 'https://www.mysite.com/wp-content/uploads/2025/01/vector.svg',
+					'src'                  => 'https://www.example.com/wp-content/uploads/2025/01/vector.svg',
 					'src_non_intermediate' => null,
 					'src_non_scaled'       => null,
 					'title'                => '',
 					'alt'                  => '',
 				],
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_get_all_img_srcs_from_html.
+	 *
+	 * @return array[]
+	 */
+	public function providerGetAllImgSrcsFromHtml() {
+		return [
+			// Empty HTML.
+			[
+				'',
+				[],
+			],
+			// HTML with no images.
+			[
+				'<div>Some text</div>',
+				[],
+			],
+			// Single image with src.
+			[
+				'<img src="https://example.com/image.jpg" alt="Test">',
+				[ 'https://example.com/image.jpg' ],
+			],
+			// Multiple images with src.
+			[
+				'<img src="https://example.com/image1.jpg" alt="Test1"><img src="https://example.com/image2.png" alt="Test2">',
+				[ 'https://example.com/image1.jpg', 'https://example.com/image2.png' ],
+			],
+			// Image with srcset.
+			[
+				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
+				[ 'https://example.com/image.jpg', 'https://example.com/image-300w.jpg', 'https://example.com/image-600w.jpg' ],
+			],
+			// Image with data-srcset.
+			[
+				'<img src="https://example.com/image.jpg" data-srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
+				[ 'https://example.com/image.jpg', 'https://example.com/image-300w.jpg', 'https://example.com/image-600w.jpg' ],
+			],
+			// Image with both srcset and data-srcset.
+			[
+				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" data-srcset="https://example.com/image-600w.jpg 600w" alt="Test">',
+				[ 'https://example.com/image.jpg', 'https://example.com/image-300w.jpg', 'https://example.com/image-600w.jpg' ],
+			],
+			// Image with empty src.
+			[
+				'<img src="" alt="Test">',
+				[],
+			],
+			// Image with no src attribute.
+			[
+				'<img alt="Test">',
+				[],
+			],
+			// Complex HTML with mixed content.
+			[
+				'<div><p>Text</p><img src="https://example.com/image1.jpg" alt="Test1"><span>More text</span><img src="https://example.com/image2.png" srcset="https://example.com/image2-300w.png 300w" alt="Test2"></div>',
+				[ 'https://example.com/image1.jpg', 'https://example.com/image2.png', 'https://example.com/image2-300w.png' ],
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_get_all_urls_from_html.
+	 *
+	 * @return array[]
+	 */
+	public function providerGetAllUrlsFromHtml() {
+		return [
+			// Empty HTML.
+			[
+				'',
+				[],
+			],
+			// HTML with no URLs.
+			[
+				'<div>Some text</div>',
+				[],
+			],
+			// HTML with various URL attributes.
+			[
+				'<a href="https://example.com/link">Link</a><img src="https://example.com/image.jpg" alt="Test">',
+				[ 'https://example.com/link', 'https://example.com/image.jpg' ],
+			],
+			// HTML with srcset URLs.
+			[
+				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
+				[ 'https://example.com/image.jpg', 'https://example.com/image-300w.jpg', 'https://example.com/image-600w.jpg' ],
+			],
+			// HTML with data attributes.
+			[
+				'<img data-src="https://example.com/lazy.jpg" data-background="https://example.com/bg.jpg" alt="Test">',
+				[ 'https://example.com/lazy.jpg', 'https://example.com/bg.jpg' ],
+			],
+			// HTML with video poster.
+			[
+				'<video poster="https://example.com/poster.jpg" src="https://example.com/video.mp4"></video>',
+				[ 'https://example.com/poster.jpg', 'https://example.com/video.mp4' ],
+			],
+			// HTML with absolute URLs in text content.
+			[
+				'<div>Check out https://example.com/page and http://another.com/resource</div>',
+				[ 'https://example.com/page', 'http://another.com/resource' ],
+			],
+			// Complex HTML with mixed content.
+			[
+				'<div><a href="https://example.com/link">Link</a><img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" alt="Test"><p>Visit https://example.com/page for more info</p></div>',
+				[ 'https://example.com/link', 'https://example.com/image.jpg', 'https://example.com/image-300w.jpg', 'https://example.com/page' ],
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_get_urls_from_srcset.
+	 *
+	 * @return array[]
+	 */
+	public function providerGetUrlsFromSrcset() {
+		return [
+			// Empty srcset.
+			[
+				'',
+				[],
+			],
+			// Single URL without descriptor.
+			[
+				'https://example.com/image.jpg',
+				[ 'https://example.com/image.jpg' ],
+			],
+			// Single URL with width descriptor.
+			[
+				'https://example.com/image-300w.jpg 300w',
+				[ 'https://example.com/image-300w.jpg' ],
+			],
+			// Single URL with height descriptor.
+			[
+				'https://example.com/image-600h.jpg 600h',
+				[ 'https://example.com/image-600h.jpg' ],
+			],
+			// Multiple URLs with descriptors.
+			[
+				'https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w',
+				[ 'https://example.com/image-300w.jpg', 'https://example.com/image-600w.jpg' ],
+			],
+			// Multiple URLs with mixed descriptors.
+			[
+				'https://example.com/image-300w.jpg 300w, https://example.com/image-600h.jpg 600h, https://example.com/image.jpg 1x',
+				[ 'https://example.com/image-300w.jpg', 'https://example.com/image-600h.jpg', 'https://example.com/image.jpg' ],
+			],
+			// URLs with extra whitespace.
+			[
+				'  https://example.com/image-300w.jpg  300w  ,  https://example.com/image-600w.jpg  600w  ',
+				[ 'https://example.com/image-300w.jpg', 'https://example.com/image-600w.jpg' ],
+			],
+			// URLs with query parameters.
+			[
+				'https://example.com/image-300w.jpg?v=1 300w, https://example.com/image-600w.jpg?v=2 600w',
+				[ 'https://example.com/image-300w.jpg?v=1', 'https://example.com/image-600w.jpg?v=2' ],
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_get_absolute_urls_from_text.
+	 *
+	 * @return array[]
+	 */
+	public function providerGetAbsoluteUrlsFromText() {
+		return [
+			// Empty text.
+			[
+				'',
+				[],
+			],
+			// Text with no URLs.
+			[
+				'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+				[],
+			],
+			// Text with absolute URLs.
+			[
+				'Visit https://example.com/page for more information.',
+				[ 'https://example.com/page' ],
+			],
+			// Text with multiple absolute URLs.
+			[
+				'Check out https://example.com/page and http://another.com/resource for details.',
+				[ 'https://example.com/page', 'http://another.com/resource' ],
+			],
+			// Text with URLs in quotes.
+			[
+				'Download from "https://example.com/file.pdf" or visit "http://another.com/page".',
+				[ 'https://example.com/file.pdf', 'http://another.com/page' ],
+			],
+			// Text with URLs and other content. Note, allowing dot to be a part of the URL because technically it's a valid URL character.
+			[
+				'Lorem ipsum dolor sit amet. Visit https://example.com/page for more info. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Check http://another.com/resource.',
+				[ 'https://example.com/page', 'http://another.com/resource.' ],
+			],
+			// Text with URLs with query parameters.
+			[
+				'Visit https://example.com/page?param=value&other=123 for details.',
+				[ 'https://example.com/page?param=value&other=123' ],
+			],
+			// Text with URLs with fragments.
+			[
+				'Go to https://example.com/page#section for the specific section.',
+				[ 'https://example.com/page#section' ],
+			],
+			// Text with mixed URL types (should only extract absolute). Note, allowing comma and dot to be a part of the URL because technically they are valid URL characters.
+			[
+				'Visit https://example.com/page, /relative/path, //protocol-relative.com/path, and http://another.com/resource.',
+				[ 'https://example.com/page,', 'http://another.com/resource.' ],
+			],
+			// Text with source-relative URLs and protocol-relative URLs. Note, allowing dot to be a part of the URL because technically it's a valid URL character.
+			[
+				'Visit https://example.com/page or /relative/path or //protocol-relative.com/path or http://another.com/resource.',
+				[ 'https://example.com/page', 'http://another.com/resource.' ],
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_get_url_extension.
+	 *
+	 * @return array[]
+	 */
+	public function providerGetUrlExtension() {
+		return [
+			// Absolute URLs.
+			[
+				'https://example.com/image.jpg',
+				'jpg',
+			],
+			[
+				'https://example.com/path/to/image.png',
+				'png',
+			],
+			[
+				'https://example.com/file.pdf',
+				'pdf',
+			],
+			[
+				'https://example.com/document.docx',
+				'docx',
+			],
+			// Root-relative URLs.
+			[
+				'/wp-content/uploads/image.jpg',
+				'jpg',
+			],
+			[
+				'/path/to/file.png',
+				'png',
+			],
+			// Protocol-relative URLs.
+			[
+				'//cdn.example.com/image.jpg',
+				'jpg',
+			],
+			[
+				'//static.example.com/file.png',
+				'png',
+			],
+			// URLs with query parameters.
+			[
+				'https://example.com/image.jpg?v=1&size=large',
+				'jpg',
+			],
+			[
+				'/path/to/file.png?width=300&height=200',
+				'png',
+			],
+			// URLs with fragments.
+			[
+				'https://example.com/image.jpg#section',
+				'jpg',
+			],
+			[
+				'/path/to/file.png#top',
+				'png',
+			],
+			// URLs with both query and fragment.
+			[
+				'https://example.com/image.jpg?v=1#section',
+				'jpg',
+			],
+			// URLs without extension.
+			[
+				'https://example.com/page',
+				'',
+			],
+			[
+				'/path/to/page',
+				'',
+			],
+			// URLs ending with slash.
+			[
+				'https://example.com/path/',
+				'',
+			],
+			[
+				'/path/to/directory/',
+				'',
+			],
+			// URLs with multiple dots.
+			[
+				'https://example.com/file.name.jpg',
+				'jpg',
+			],
+			[
+				'/path/to/file.name.png',
+				'png',
+			],
+			// URLs with uppercase extensions.
+			[
+				'https://example.com/image.JPG',
+				'JPG',
+			],
+			[
+				'/path/to/file.PNG',
+				'PNG',
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_is_url_absolute.
+	 *
+	 * @return array[]
+	 */
+	public function providerIsUrlAbsolute() {
+		return [
+			// Valid absolute URLs.
+			[
+				'https://example.com/page',
+				true,
+			],
+			[
+				'http://example.com/page',
+				true,
+			],
+			[
+				'HTTPS://EXAMPLE.COM/PAGE',
+				true,
+			],
+			[
+				'HTTP://EXAMPLE.COM/PAGE',
+				true,
+			],
+			// Non-absolute URLs.
+			[
+				'/relative/path',
+				false,
+			],
+			[
+				'//protocol-relative.com/path',
+				false,
+			],
+			[
+				'relative/path',
+				false,
+			],
+			[
+				'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PC9zdmc+',
+				false,
+			],
+			[
+				'mailto:user@example.com',
+				false,
+			],
+			[
+				'tel:+1234567890',
+				false,
+			],
+			// Edge cases.
+			[
+				'',
+				false,
+			],
+			[
+				'   https://example.com/page   ',
+				true,
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_is_url_root_relative.
+	 *
+	 * @return array[]
+	 */
+	public function providerIsUrlRootRelative() {
+		return [
+			// Valid root-relative URLs.
+			[
+				'/path/to/page',
+				true,
+			],
+			[
+				'/image.jpg',
+				true,
+			],
+			[
+				'/',
+				true,
+			],
+			[
+				'/path/with/query?param=value',
+				true,
+			],
+			[
+				'/path/with/fragment#section',
+				true,
+			],
+			// Non-root-relative URLs.
+			[
+				'https://example.com/page',
+				false,
+			],
+			[
+				'http://example.com/page',
+				false,
+			],
+			[
+				'//protocol-relative.com/path',
+				false,
+			],
+			[
+				'relative/path',
+				false,
+			],
+			[
+				'path/without/leading/slash',
+				false,
+			],
+			[
+				'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PC9zdmc+',
+				false,
+			],
+			// Edge cases.
+			[
+				'',
+				false,
+			],
+			[
+				'   /path/to/page   ',
+				true,
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_is_url_protocol_relative.
+	 *
+	 * @return array[]
+	 */
+	public function providerIsUrlProtocolRelative() {
+		return [
+			// Valid protocol-relative URLs.
+			[
+				'//example.com/page',
+				true,
+			],
+			[
+				'//cdn.example.com/image.jpg',
+				true,
+			],
+			[
+				'//static.example.com/path/to/file.png',
+				true,
+			],
+			[
+				'//example.com/path/with/query?param=value',
+				true,
+			],
+			[
+				'//example.com/path/with/fragment#section',
+				true,
+			],
+			// Non-protocol-relative URLs.
+			[
+				'https://example.com/page',
+				false,
+			],
+			[
+				'http://example.com/page',
+				false,
+			],
+			[
+				'/relative/path',
+				false,
+			],
+			[
+				'relative/path',
+				false,
+			],
+			[
+				'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PC9zdmc+',
+				false,
+			],
+			// Edge cases.
+			[
+				'',
+				false,
+			],
+			[
+				'   //example.com/page   ',
+				true,
+			],
+			[
+				'///example.com/page',
+				false,
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_is_url_valid.
+	 *
+	 * @return array[]
+	 */
+	public function providerIsUrlValid() {
+		return [
+			// Valid absolute URLs.
+			[
+				'https://example.com/page',
+				true,
+			],
+			[
+				'http://example.com/page',
+				true,
+			],
+			[
+				'https://example.com/path/to/page?param=value#section',
+				true,
+			],
+			[
+				'http://subdomain.example.com:8080/path',
+				true,
+			],
+			// Valid root-relative URLs.
+			[
+				'/path/to/page',
+				true,
+			],
+			[
+				'/image.jpg',
+				true,
+			],
+			[
+				'/path/with/query?param=value',
+				true,
+			],
+			[
+				'/path/with/fragment#section',
+				true,
+			],
+			// Valid protocol-relative URLs.
+			[
+				'//example.com/page',
+				true,
+			],
+			[
+				'//cdn.example.com/image.jpg',
+				true,
+			],
+			[
+				'//example.com/path/with/query?param=value',
+				true,
+			],
+			// Invalid URLs.
+			[
+				'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PC9zdmc+',
+				false,
+			],
+			[
+				'mailto:user@example.com',
+				false,
+			],
+			[
+				'tel:+1234567890',
+				false,
+			],
+			[
+				'relative/path',
+				false,
+			],
+			[
+				'path/without/leading/slash',
+				false,
+			],
+			[
+				'ftp://example.com/file',
+				false,
+			],
+			[
+				'http://example.com:invalid/file',
+				false,
+			],
+			[
+				'https://example.com:99999/file',
+				false,
+			],
+			// Edge cases.
+			[
+				'',
+				false,
+			],
+			[
+				'   https://example.com/page   ',
+				true,
+			],
+			[
+				'   /path/to/page   ',
+				true,
+			],
+			[
+				'   //example.com/page   ',
+				true,
 			],
 		];
 	}

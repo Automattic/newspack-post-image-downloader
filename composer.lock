@@ -12,17 +12,17 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Automattic/newspack-migration-tools.git",
-                "reference": "2998c4b39c09eca07b52b25bde03b4b66aae6f3c"
+                "reference": "2194daf185c4701d907b708296be62543da998c1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Automattic/newspack-migration-tools/zipball/2998c4b39c09eca07b52b25bde03b4b66aae6f3c",
-                "reference": "2998c4b39c09eca07b52b25bde03b4b66aae6f3c",
+                "url": "https://api.github.com/repos/Automattic/newspack-migration-tools/zipball/2194daf185c4701d907b708296be62543da998c1",
+                "reference": "2194daf185c4701d907b708296be62543da998c1",
                 "shasum": ""
             },
             "require": {
                 "bramus/monolog-colored-line-formatter": "^3.1",
-                "halaxa/json-machine": "^1.1",
+                "halaxa/json-machine": "^1.1.5",
                 "monolog/monolog": "^3.7",
                 "php": ">=8.1"
             },
@@ -71,7 +71,7 @@
                 "source": "https://github.com/Automattic/newspack-migration-tools/tree/trunk",
                 "issues": "https://github.com/Automattic/newspack-migration-tools/issues"
             },
-            "time": "2025-07-29T14:36:45+00:00"
+            "time": "2025-08-08T08:59:49+00:00"
         },
         {
             "name": "brainmaestro/composer-git-hooks",
