@@ -56,7 +56,7 @@ E.g.2. or if a scaled image https://www.mysite.com/wp-content/uploads/2025/01/im
 
 ### -- non-image file downloading
 
-To download non-image files, a mandatory `--extensions` parameter is required, e.g. `--extensions=pdf,docx,xlsx,pptx`.
+To download non-image files, the command `download-non-images-files` takes the mandatory `--extensions` parameter, e.g. `--extensions=pdf,docx,xlsx,pptx`.
 
 Recommended workflow is to first run the `scan-existing-urls --include-non-image-urls` command, and then determine which extensions to download by using the `--extensions` parameter, and of course also decide which hosts to download from (using `--only-download-from-hosts` or `--exclude-hosts`).
 
