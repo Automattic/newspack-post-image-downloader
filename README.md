@@ -1,10 +1,6 @@
 # Newspack Post Image Downloader
 
-This plugin imports externally hosted file URLs found in your post content. It was originally developed to a download external images, but later extended to support non-image file URLs as well.
-
-There is also a command to list all the image or non-image URLs, so that one can examine what should be downloaded -- by specific host and extension.
-
-Optionally, one can provide a local folder containing the files. The downloader will first look for the file there, and if it's not found locally, it will be download from remote URL.
+This plugin downloads image or non-image files from externally hosted file URLs found in your post content directly to your site's Media Library, and updates those URLs in post content.
 
 The plugin presently supports three kinds of URLs:
 - absolute URLs (e.g. `https://example.com/wp-content/uploads/image.png`)
@@ -13,14 +9,17 @@ The plugin presently supports three kinds of URLs:
 but not:
 - page-relative (e.g. `../uploads/image.png`)
 
+Optionally you can provide a local folder containing these files. The downloader will try and find the files in this folder, and if it's not found it will download it from the remote URL.
+
+
 ## DISCLAIMER
 
-**This plugin destructively modifies your site's content by downloading and replacing external URLs from the post content with local media library attachments. It is always recommended to create a complete backup of your site before using this plugin. Use this plugin at your own risk and responsibility. The authors are not responsible for any data loss, site issues, or other consequences resulting from the use of this plugin.**
+**This plugin destructively modifies your site's content by downloading and replacing external URLs from the post content with local media library attachments. It is recommended to create a complete backup of your site before using this plugin. Use this plugin at your own risk and responsibility. The authors are not responsible for any data loss, site issues, or other consequences resulting from the use of this plugin.**
 
 
 ## Table of Contents
 
-This guide provides step-by-step workflows for downloading images and non-image files from your WordPress site using the Newspack Post Image Downloader plugin.
+This guide provides step-by-step workflows for downloading images and non-image files.
 
 1. [Downloading Image Files](#downloading-image-files)
 2. [Downloading Non-Image Files](#downloading-non-image-files)
