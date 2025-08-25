@@ -6,6 +6,7 @@ The plugin presently supports three kinds of URLs:
 - absolute URLs (e.g. `https://example.com/wp-content/uploads/image.png`)
 - root-relative URLs (e.g. `/wp-content/uploads/image.png`)
 - protocol-relative URLs (e.g. `//example.com/path`)
+
 but not:
 - page-relative (e.g. `../uploads/image.png`)
 
