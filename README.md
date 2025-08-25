@@ -10,7 +10,7 @@ The plugin presently supports three kinds of URLs:
 but not:
 - page-relative (e.g. `../uploads/image.png`)
 
-Optionally you can provide a local folder containing these files. The downloader will try and find the files in this folder, and if it's not found it will download it from the remote URL.
+Optionally you can provide a local folder containing the files, and the downloader will try and import the files from this local folder, or if they're not found there it will download them from the remote URL.
 
 
 ## DISCLAIMER
