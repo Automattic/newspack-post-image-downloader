@@ -25,6 +25,7 @@ This guide provides step-by-step workflows for downloading images and non-image 
 1. [Downloading Image Files](#downloading-image-files)
 2. [Downloading Non-Image Files](#downloading-non-image-files)
 3. [Command Reference](#command-reference)
+4. [Important notes](#important-notes)
 
 ---
 
