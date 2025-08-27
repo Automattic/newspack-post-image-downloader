@@ -25,7 +25,7 @@ This guide provides step-by-step workflows for downloading images and non-image 
 1. [Downloading Image Files](#downloading-image-files)
 2. [Downloading Non-Image Files](#downloading-non-image-files)
 3. [Command Reference](#command-reference)
-4. [Important notes](#important-notes)
+4. [Other notes](#other-notes)
 
 ---
 
@@ -47,10 +47,10 @@ This command will:
 - Display a summary of all hostnames and file extensions found
 
 View the generated `cmd_scan_existing_urls.csv` file to see:
-- Which posts contain images
 - Which hostnames are used
 - What file extensions are present
 - Specific URLs that will be processed
+- Which posts contain images
 
 There are several ways to download images from specific hosts only, namely by using the `--only-download-from-hosts` or `--exclude-hosts` parameters.
 
@@ -65,12 +65,12 @@ wp newspack-post-image-downloader download-images
 Images will be downloaded from the specified hosts only.
 
 ```bash
-wp newspack-post-image-downloader download-images --only-download-from-hosts="example.com,*.example.com,other-host-example.com"
+wp newspack-post-image-downloader download-images --only-download-from-hosts=example.com,*.example.com,other-example.com
 ```
 
 **Option C: Exclude certain hosts**
 ```bash
-wp newspack-post-image-downloader download-images --exclude-hosts="cdn.example.com,images.unsplash.com"
+wp newspack-post-image-downloader download-images --exclude-hosts=cdn.example.com,images.unsplash.com
 ```
 
 #### Step 2: Select to download Root-Relative and Protocol-Relative URLs or not, as Well as the Large Image Sizes
@@ -97,7 +97,7 @@ For those who are not familiar with WordPress image sizes, see more about those 
 Optionally before the actual download test with a dry run `--dry-run` to see what would be downloaded. Once satisfied with the dry run results, execute the download:
 
 ```bash
-wp newspack-post-image-downloader download-images --only-download-from-hosts="example.com" --default-host-and-schema="https://oldsite.com"
+wp newspack-post-image-downloader download-images --only-download-from-hosts=*.oldsite.com,oldsite.com --default-host-and-schema=https://oldsite.com
 ```
 
 
@@ -119,15 +119,11 @@ This command will:
 - Show you what file types are present
 
 Review the `cmd_scan_existing_urls.csv` and look for:
-- File extensions (pdf, docx, xlsx, pptx, etc.)
+- File extensions
 - Hostnames serving these files
-- Which posts contain non-image files
+- Which posts contain the non-image files
 
-Based on the scan, choose which file types to download. Common choices:
-- **Documents**: `pdf,doc,docx,xls,xlsx,ppt,pptx`
-- **Archives**: `zip,rar,7z`
-- **Media**: `mp4,mp3,wav,avi`
-- **Other**: `txt,csv,xml`
+Lastly, based on the scan, choose which extensions to download.
 
 #### Step 2: Execute the Download
 
@@ -135,8 +131,8 @@ Optionally, you can run a dry run first with `--dry-run` to see what would be do
 
 ```bash
 wp newspack-post-image-downloader download-non-images-files \
-  --extensions="pdf,docx,xlsx" \
-  --default-host-and-schema="https://oldsite.com"
+  --extensions=pdf,docx,xlsx \
+  --default-host-and-schema=https://oldsite.com
 ```
 
 ---
@@ -147,14 +143,13 @@ wp newspack-post-image-downloader download-non-images-files \
 
 ---
 
-## Important Notes
+## Other Notes
 
 ### Performance Tips
 
 - Use `--dry-run` first to test your configuration
-- Consider using `--do-not-download-large-sizes` for images to avoid downloading multiple sizes
+- Consider using `--do-not-download-large-sizes` when files are coming from a non-WordPress site, since the image naming standard might not be the same as in EP
 - Use `--post-ids-csv` or `--post-id-from`/`--post-id-to` to process specific posts
-- Use host filtering to reduce processing time
 
 ### Troubleshooting
 
