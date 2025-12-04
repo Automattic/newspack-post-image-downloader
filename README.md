@@ -67,11 +67,13 @@ Images will be downloaded from the specified hosts only.
 ```bash
 wp newspack-post-image-downloader download-images --only-download-from-hosts=example.com,*.example.com,other-example.com
 ```
+_* also provide `--default-host-and-schema`_
 
 **Option C: Exclude certain hosts**
 ```bash
 wp newspack-post-image-downloader download-images --exclude-hosts=cdn.example.com,images.unsplash.com
 ```
+_* also provide `--default-host-and-schema`_
 
 #### Step 2: Select to download Root-Relative and Protocol-Relative URLs or not, as Well as the Large Image Sizes
 
@@ -80,6 +82,7 @@ If image links on your site have root-relative URLs (starting with `/`) or proto
 ```bash
 wp newspack-post-image-downloader download-images --default-host-and-schema="https://oldsite.com"
 ```
+_* also provide `--default-host-and-schema`_
 
 You may also optionally skip downloading root-relative and protocol-relative URLs by using the `--do-not-download-root-relative-urls` and `--do-not-download-protocol-relative-urls` flags.
 
