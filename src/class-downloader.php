@@ -832,6 +832,9 @@ class Downloader {
 					
 					// Replace $src (escaped and non-escaped) in Post content with new imported/downloaded $src_local.
 					$post_content_updated = str_replace( [ esc_attr( $src ), $src ], $src_local, $post_content_updated );
+
+					// Remove srcset/data-srcset and add wp-image-{id} class (which enables WP srcset regeneration).
+					$post_content_updated = $this->update_img_tag_for_new_attachment( $post_content_updated, $src_local, $attachment_id );
 				} elseif ( ! $dry_run ) {
 					// If no version of the image was imported or downloaded, log an error.
 					$this->log(
@@ -1822,6 +1825,57 @@ class Downloader {
 	 */
 	public function file_exists( $file ) {
 		return file_exists( $file );
+	}
+
+	/**
+	 * Alternative version using Symfony DomCrawler for DOM manipulation instead of regex.
+	 * Removes srcset/data-srcset attributes and adds/updates wp-image-{id} class.
+	 *
+	 * @param string $html          HTML content.
+	 * @param string $src_local     The new local src URL to match img tags.
+	 * @param int    $attachment_id The attachment ID.
+	 * @return string Updated HTML.
+	 */
+	public function update_img_tag_for_new_attachment( string $html, string $src_local, int $attachment_id ): string {
+		// Wrap HTML to prevent DOMDocument from adding html/body structure.
+		$wrapper_id   = 'npid-tmp-' . uniqid();
+		$wrapped_html = '<div id="' . $wrapper_id . '">' . $html . '</div>';
+
+		$crawler = new Crawler( $wrapped_html );
+
+		// Find img tags matching the src (using reduce() to avoid CSS selector escaping issues).
+		$img_nodes = $crawler->filter( 'img' )->reduce(
+			fn( Crawler $node ) => $node->attr( 'src' ) === $src_local
+		);
+
+		if ( 0 === $img_nodes->count() ) {
+			return $html;
+		}
+
+		// Pattern to match wp-image-{id} class.
+		$pattern_wp_image_class = '/\bwp-image-\d+\b/';
+
+		// Modify each matching img node using DOM manipulation.
+		$img_nodes->each(
+			function ( Crawler $node ) use ( $attachment_id, $pattern_wp_image_class ) {
+				// \DOMElement $element DOM element.
+				$element = $node->getNode( 0 );
+
+				// Remove srcset and data-srcset attributes.
+				$element->removeAttribute( 'srcset' );
+				$element->removeAttribute( 'data-srcset' );
+
+				// Update or add wp-image-{id} class.
+				$class = $element->getAttribute( 'class' );
+				$class = preg_replace( $pattern_wp_image_class, '', $class );
+				$class = trim( preg_replace( '/\s+/', ' ', $class ) );
+				$class = trim( $class . ' wp-image-' . $attachment_id );
+				$element->setAttribute( 'class', $class );
+			}
+		);
+
+		// Extract modified HTML from wrapper.
+		return $crawler->filter( '#' . $wrapper_id )->html();
 	}
 
 	/**

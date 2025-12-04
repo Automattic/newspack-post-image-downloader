@@ -342,6 +342,21 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests the `update_img_tag_for_new_attachment` function.
+	 *
+	 * @dataProvider providerUpdateImgTagForNewAttachment
+	 *
+	 * @param string $html            The HTML content to process.
+	 * @param string $src_local       The src URL to match.
+	 * @param int    $attachment_id   The attachment ID to use.
+	 * @param string $result_expected The expected HTML output.
+	 */
+	public function test_update_img_tag_for_new_attachment( $html, $src_local, $attachment_id, $result_expected ) {
+		$result_actual = $this->downloader->update_img_tag_for_new_attachment( $html, $src_local, $attachment_id );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
 	 * Creates a partial mock of the Downloader class, and mocks the `file_exists` method with expected input argument and response.
 	 * In case of a different input argument, mock will return null.
 	 *
@@ -1220,6 +1235,151 @@ class Test_Downloader extends WP_UnitTestCase {
 			[
 				'   //example.com/page   ',
 				true,
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_update_img_tag_for_new_attachment.
+	 *
+	 * @return array[]
+	 */
+	public function providerUpdateImgTagForNewAttachment() {
+		return [
+			// No matching img tag - HTML should remain unchanged.
+			'no_matching_img'                      => [
+				'<img src="https://example.com/other.jpg" alt="Other">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/other.jpg" alt="Other">',
+			],
+
+			// Empty HTML - should return empty.
+			'empty_html'                           => [
+				'',
+				'https://example.com/image.jpg',
+				123,
+				'',
+			],
+
+			// Basic img with no class - should add wp-image-{id} class.
+			'add_class_to_img_without_class'       => [
+				'<img src="https://example.com/image.jpg" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+			],
+
+			// Img with existing class - should append wp-image-{id}.
+			'append_class_to_existing'             => [
+				'<img src="https://example.com/image.jpg" class="kg-image" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test">',
+			],
+
+			// Img with multiple existing classes - should append wp-image-{id}.
+			'append_class_to_multiple_existing'    => [
+				'<img src="https://example.com/image.jpg" class="kg-image custom-class another" alt="Test">',
+				'https://example.com/image.jpg',
+				456,
+				'<img src="https://example.com/image.jpg" class="kg-image custom-class another wp-image-456" alt="Test">',
+			],
+
+			// Img with existing wp-image-{old_id} class - should replace with new ID.
+			'replace_existing_wp_image_class'      => [
+				'<img src="https://example.com/image.jpg" class="kg-image wp-image-111 customclass" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="kg-image customclass wp-image-123" alt="Test">',
+			],
+
+			// Img with only wp-image-{old_id} class - should replace with new ID.
+			'replace_only_wp_image_class'          => [
+				'<img src="https://example.com/image.jpg" class="wp-image-999" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="wp-image-123" alt="Test">',
+			],
+
+			// Img with srcset - should remove srcset  (DOMDocument adds class at end).
+			'remove_srcset'                        => [
+				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+			],
+
+			// Img with data-srcset - should remove data-srcset (DOMDocument adds class at end).
+			'remove_data_srcset'                   => [
+				'<img src="https://example.com/image.jpg" data-srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+			],
+
+			// Img with both srcset and data-srcset - should remove both (DOMDocument adds class at end).
+			'remove_both_srcsets'                  => [
+				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" data-srcset="https://example.com/image-600w.jpg 600w" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+			],
+
+			// Img with class, srcset, and wp-image - full replacement scenario.
+			'full_replacement_scenario'            => [
+				'<img src="https://example.com/image.jpg" class="kg-image wp-image-111" srcset="https://example.com/image-300w.jpg 300w" data-srcset="https://example.com/image-600w.jpg 600w" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test">',
+			],
+
+			// Multiple img tags - only matching one should be modified.
+			'multiple_imgs_only_matching_modified' => [
+				'<div><img src="https://example.com/other.jpg" class="other-class" alt="Other"><img src="https://example.com/image.jpg" class="kg-image" srcset="https://example.com/image-300w.jpg 300w" alt="Test"></div>',
+				'https://example.com/image.jpg',
+				123,
+				'<div><img src="https://example.com/other.jpg" class="other-class" alt="Other"><img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test"></div>',
+			],
+
+			// Multiple matching img tags - all should be modified (DOMDocument adds class at end for first img).
+			'multiple_matching_imgs_all_modified'  => [
+				'<div><img src="https://example.com/image.jpg" alt="First"><img src="https://example.com/image.jpg" class="second" alt="Second"></div>',
+				'https://example.com/image.jpg',
+				123,
+				'<div><img src="https://example.com/image.jpg" alt="First" class="wp-image-123"><img src="https://example.com/image.jpg" class="second wp-image-123" alt="Second"></div>',
+			],
+
+			// Img with empty class attribute - should add wp-image-{id}.
+			'img_with_empty_class'                 => [
+				'<img src="https://example.com/image.jpg" class="" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="wp-image-123" alt="Test">',
+			],
+
+			// Img with single quotes for attributes (DOMDocument converts to double quotes).
+			'img_with_single_quotes'               => [
+				"<img src='https://example.com/image.jpg' class='kg-image' alt='Test'>",
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test">',
+			],
+
+			// Complex HTML structure (real-world example).
+			'ghost_cms_real_world'                 => [
+				'<figure class="kg-card kg-image-card kg-card-hascaption"><img src="https://example.com/image.jpg" class="kg-image" alt="" loading="lazy" width="2000" height="1033" srcset="https://example.com/image-600w.jpg 600w, https://example.com/image-1000w.jpg 1000w, https://example.com/image-1600w.jpg 1600w" sizes="(min-width: 720px) 720px"><figcaption>Caption text</figcaption></figure>',
+				'https://example.com/image.jpg',
+				789,
+				'<figure class="kg-card kg-image-card kg-card-hascaption"><img src="https://example.com/image.jpg" class="kg-image wp-image-789" alt="" loading="lazy" width="2000" height="1033" sizes="(min-width: 720px) 720px"><figcaption>Caption text</figcaption></figure>',
+			],
+
+			// Img in nested HTML structure (DOMDocument adds class at end).
+			'img_in_nested_structure'              => [
+				'<article><div class="content"><p>Some text</p><figure><img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" alt="Test"></figure><p>More text</p></div></article>',
+				'https://example.com/image.jpg',
+				123,
+				'<article><div class="content"><p>Some text</p><figure><img src="https://example.com/image.jpg" alt="Test" class="wp-image-123"></figure><p>More text</p></div></article>',
 			],
 		];
 	}
