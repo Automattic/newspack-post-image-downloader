@@ -1700,8 +1700,7 @@ class Downloader {
 			'data-preview',
 		];
 		foreach ( $simple_attributes as $attribute ) {
-			$crawler = $crawler->filter( "[{$attribute}]" );
-			foreach ( $crawler->getIterator() as $node ) {
+			foreach ( $crawler->filter( "[{$attribute}]" ) as $node ) {
 				$urls[] = $node->getAttribute( $attribute );
 			}
 		}
