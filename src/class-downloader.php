@@ -101,6 +101,14 @@ class Downloader {
 					],
 					[
 						'type'        => 'assoc',
+						'name'        => 'only-scan-hosts',
+						// @todo Need full description.
+						'description' => 'CSV, list of specific hosts to scan...',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
 						'name'        => 'post-types',
 						'description' => 'Optional CSV Post types to scan. Defaults are `post,page`',
 						'optional'    => true,
@@ -346,6 +354,7 @@ class Downloader {
 	 */
 	public function cmd_scan_existing_urls( $pos_args, $assoc_args ) {
 		$include_non_image_urls = isset( $assoc_args['include-non-image-urls'] ) ? true : false;
+		$only_scan_hosts        = isset( $assoc_args['only-scan-hosts'] ) ? explode( ',', $assoc_args['only-scan-hosts'] ) : null;
 		$post_types             = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : [ 'post', 'page' ];
 		$post_statuses          = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : [ 'publish' ];
 		$post_ids_specific      = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
@@ -406,14 +415,17 @@ class Downloader {
 				// Validate URL.
 				if ( ! $this->is_url_valid( $url ) ) {
 					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::NOTICE, sprintf( "Skip invalid URL '%s'", $url ), [ 'post_id' => $post_id ] );
-					// Unsupported URL, like `src="data:image/svg+xml;base64"` or invalid URLs.
-					fputcsv( $csv_file_handle, [ $post_id, '', '', 'invalid-url: ' . $url ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
 					continue;
 				}
 				
 				// Get hostname.
-				$url_check = $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url;
-				$hostname  = wp_parse_url( $url_check, PHP_URL_HOST );
+				$hostname  = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url, PHP_URL_HOST );
+
+				// Filter by host.
+				if ( $hostname && $only_scan_hosts && ! $this->does_uri_match_host( '//'. $hostname . '/', $only_scan_hosts ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
+					continue;
+				}				
 
 				// Get extension.
 				$extension = $this->get_url_extension( $url );
