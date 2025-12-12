@@ -709,10 +709,11 @@ class Test_Downloader extends WP_UnitTestCase {
 				'<img data-src="https://example.com/lazy.jpg" data-background="https://example.com/bg.jpg" alt="Test">',
 				[ 'https://example.com/lazy.jpg', 'https://example.com/bg.jpg' ],
 			],
-			// HTML with video poster.
+			// HTML with video poster and reversed order of attributes.
 			[
 				'<video poster="https://example.com/poster.jpg" src="https://example.com/video.mp4"></video>',
-				[ 'https://example.com/poster.jpg', 'https://example.com/video.mp4' ],
+				// the crawler will capture "src" attribute first, then "poster" based on $simple_attributes array order.
+				[ 'https://example.com/video.mp4', 'https://example.com/poster.jpg' ],
 			],
 			// HTML with absolute URLs in text content.
 			[
@@ -723,6 +724,25 @@ class Test_Downloader extends WP_UnitTestCase {
 			[
 				'<div><a href="https://example.com/link">Link</a><img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" alt="Test"><p>Visit https://example.com/page for more info</p></div>',
 				[ 'https://example.com/link', 'https://example.com/image.jpg', 'https://example.com/image-300w.jpg', 'https://example.com/page' ],
+			],
+			// Complex HTML with mixed elements, attributes, relative, absolute, protocol-relative, http, https...in mixed attribute order.
+			[
+				'
+					<video poster="//example.com/poster.png"></video>
+					<section data-background="http://example.com/background.jpg"></section>
+					<script src="https://example.com/app.js"></script>
+					<img src="/image.jpg" />
+					<a href="relative/audio.mp3">relative</a>
+					<a href="/absolute/audio.mp3">absolute</a>
+				',
+				[
+					// href attribute is crawled first, but relative urls are filtered out: 'relative/audio.mp3' .
+					'/absolute/audio.mp3', // href attribute is crawled first.
+					'https://example.com/app.js', // src attribute is crawled after href.
+					'/image.jpg', // src attribute is crawled after href.
+					'http://example.com/background.jpg', // data-background is crawled after src, but before poster.
+					'//example.com/poster.png', // post is crawled later.
+				],
 			],
 		];
 	}
