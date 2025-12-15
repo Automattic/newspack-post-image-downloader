@@ -29,113 +29,61 @@ This guide provides step-by-step workflows for downloading images and non-image 
 
 ---
 
-## Downloading Image Files
+## Recommended workflow
 
-### Recommended Workflow
+The following workflow demonstrates how to download all image and non-image files from content. If downloading both images and non-image files is the goal, it is recommended to do it in this order.
 
-#### Step 1: Scan and Analyze Existing Image URLs and Decide Which Hosts to Download From
+### Downloading Image Files
 
-First, discover all image URLs on your site to understand which hosts they come from, and decide which hosts to download from (e.g. you might not want to download images from some 3rd party hosts):
+#### Step 1: Scan and Select Hostnames to Download From
+
+First, discover all image URLs on your site:
 
 ```bash
 wp newspack-post-image-downloader scan-existing-urls
 ```
 
-This command will:
+This will:
 - Scan all posts and pages for `<img src>` and `srcset` attributes
-- Generate a CSV file with list of all found URLs, post IDs, hostnames and file extensions
-- Display a summary of all hostnames and file extensions found
+- Generate `cmd_scan_existing_urls.csv` with all found URLs, post IDs, hostnames and file extensions
+- Display a summary of hostnames and file extensions found
 
-View the generated `cmd_scan_existing_urls.csv` file to see:
-- Which hostnames are used
-- What file extensions are present
-- Specific URLs that will be processed
-- Which posts contain images
+From the resulting list, select the hosts to download from using `--only-download-from-hosts`. Both this and `--exclude-hosts` support wildcards and CSV values, e.g. `--only-download-from-hosts=example.com,*.example.com` downloads from example.com and all its subdomains.
 
-There are several ways to download images from specific hosts only, namely by using the `--only-download-from-hosts` or `--exclude-hosts` parameters.
-
-Both parameters accept wildcards (enabling you to download from all subdomains of a specific host, e.g. `*.example.com`), and multiple hosts CSV values.
-
-**Option A: Download from all hosts -- not recommended, you probably do not want to download "the entire Internet"**
-```bash
-wp newspack-post-image-downloader download-images
-```
-
-**Option B: Download from specific hosts only**
-Images will be downloaded from the specified hosts only.
+#### Step 2: Download Images
 
 ```bash
-wp newspack-post-image-downloader download-images --only-download-from-hosts=example.com,*.example.com,other-example.com
-```
-_* also provide `--default-host-and-schema`_
-
-**Option C: Exclude certain hosts**
-```bash
-wp newspack-post-image-downloader download-images --exclude-hosts=cdn.example.com,images.unsplash.com
-```
-_* also provide `--default-host-and-schema`_
-
-#### Step 2: Select to download Root-Relative and Protocol-Relative URLs or not, as Well as the Large Image Sizes
-
-If image links on your site have root-relative URLs (starting with `/`) or protocol-relative URLs (starting with `//`), you must provide the default source host which will be used to download these URLs:
-
-```bash
-wp newspack-post-image-downloader download-images --default-host-and-schema="https://oldsite.com"
-```
-_* also provide `--default-host-and-schema`_
-
-You may also optionally skip downloading root-relative and protocol-relative URLs by using the `--do-not-download-root-relative-urls` and `--do-not-download-protocol-relative-urls` flags.
-
-This plugin was made with WordPress sites in mind, and by default it plugin will attempt to import the largest available image size into the Media Library, and also download the smaller intermediate/scaled image sizes side.
-
-You may optionally skip downloading the largest image size by using the `--do-not-download-large-sizes` flag with the `download-images` command. Use this if the image links come from a non-WordPress site, because it likely does not have the same image size conventions as WP.
-
-For those who are not familiar with WordPress image sizes, see more about those in [WordPress docs](https://make.wordpress.org/core/2019/10/09/introducing-handling-of-big-images-in-wordpress-5-3/), but here's how this plugin will handle them:
-- e.g.1. if an intermediate image (with a size suffix appended to filename, e.g. `-300x244`) is found in post_content for download https://www.mysite.com/wp-content/uploads/2025/01/img-puppy-300x244.jpg the command will attempt to import the non-intermediate image into the Media Library https://www.mysite.com/wp-content/uploads/2025/01/img-puppy.jpg , and additionally just download the intermediate one next to it.
-- e.g.2. or if a scaled image https://www.mysite.com/wp-content/uploads/2025/01/img-kitten-scaled.jpg is used, the command will try and import the non-scaled image into the media library https://www.mysite.com/wp-content/uploads/2025/01/img-kitten.jpg , and still also seamlessly download and use the scaled version in post_content.
-
-
-#### Step 3: Execute the Download
-
-Optionally before the actual download test with a dry run `--dry-run` to see what would be downloaded. Once satisfied with the dry run results, execute the download:
-
-```bash
-wp newspack-post-image-downloader download-images --only-download-from-hosts=*.oldsite.com,oldsite.com --default-host-and-schema=https://oldsite.com
+wp newspack-post-image-downloader download-images \
+  --only-download-from-hosts=example.com,*.example.com \
+  --default-host-and-schema=https://www.example.com
 ```
 
+**Key options:**
+- `--default-host-and-schema` Required for root-relative (`/path/img.jpg`) and protocol-relative (`//host/img.jpg`) URLs. Can skip these with `--do-not-download-root-relative-urls` or `--do-not-download-protocol-relative-urls`
+- `--do-not-download-large-sizes` Use when source is a non-WordPress site (skips attempting to find/download the original full-size image from intermediate/scaled versions)
+- `--dry-run` Preview what would be downloaded before executing
 
-## Downloading Non-Image Files
+**WordPress image size handling:** The plugin automatically attempts to import the largest available image size into the Media Library (e.g. `img-puppy.jpg` instead of `img-puppy-300x244.jpg`, or `img-kitten.jpg` instead of `img-kitten-scaled.jpg`), while also downloading intermediate sizes alongside it.
 
-### Recommended Workflow
+### Downloading Non-Image Files
 
-#### Step 1: Scan for All Non-Image URLs and Decide Which Extensions to Download
-
-Discover all non-image URLs on your site:
+#### Step 3: Scan for Non-Image URLs and Select Extensions
 
 ```bash
 wp newspack-post-image-downloader scan-existing-urls --include-non-image-urls
 ```
 
-This command will:
-- Scan all posts and pages for ALL URLs (not just images)
-- Generate a CSV file with hostnames and extensions
-- Show you what file types are present
+Review the results to:
+- Check if any image extensions were missed (may indicate custom syntax needing manual handling)
+- Identify non-image file extensions to download, e.g. `--extensions=pdf,m4a,mp4`
 
-Review the `cmd_scan_existing_urls.csv` and look for:
-- File extensions
-- Hostnames serving these files
-- Which posts contain the non-image files
-
-Lastly, based on the scan, choose which extensions to download.
-
-#### Step 2: Execute the Download
-
-Optionally, you can run a dry run first with `--dry-run` to see what would be downloaded:
+#### Step 4: Download Non-Image Files
 
 ```bash
 wp newspack-post-image-downloader download-non-images-files \
-  --extensions=pdf,docx,xlsx \
-  --default-host-and-schema=https://oldsite.com
+  --only-download-from-hosts=example.com,*.example.com \
+  --default-host-and-schema=https://www.example.com \
+  --extensions=pdf,m4a,mp4
 ```
 
 ---
