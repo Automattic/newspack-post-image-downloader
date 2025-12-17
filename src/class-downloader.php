@@ -90,20 +90,20 @@ class Downloader {
 			'newspack-post-image-downloader scan-existing-urls',
 			[ $this, 'cmd_scan_existing_urls' ],
 			[
-				'shortdesc' => 'Searches all existing image URLs in <img src> attributes in posts and pages, and lists hostnames and extensions. Useful to ascertain existing hostnames to include/exclude from downloading.',
+				'shortdesc' => 'Searches all existing image URLs in <img> attributes in posts and pages, and lists hostnames and extensions. Useful to ascertain existing hostnames to include/exclude from downloading.',
 				[
 					[
 						'type'        => 'flag',
 						'name'        => 'include-non-image-urls',
-						'description' => 'By default, only scans image URLs, but if this flag is set, it will also scan non-image URLs.',
+						'description' => 'By default, only scans <img> elements, but if this flag is set, it will also scan non-image URLs.',
 						'optional'    => true,
 						'repeating'   => false,
 					],
 					[
 						'type'        => 'assoc',
 						'name'        => 'only-scan-hosts',
-						// @todo Need full description.
-						'description' => 'CSV, list of specific hosts to scan...',
+						'description' => 'CSV, list of specific hosts to scan. Can use a wildcard, e.g. to cover a host and all its subdomains, use these two values `somehost.com,*.somehost.com`, or for multiple domain extensions use `www.somehost.*`, or can even use `*.somehost.*` for all subdomains and all domain extensions.
+						',
 						'optional'    => true,
 						'repeating'   => false,
 					],
@@ -414,17 +414,35 @@ class Downloader {
 
 				// Validate URL.
 				if ( ! $this->is_url_valid( $url ) ) {
-					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::NOTICE, sprintf( "Skip invalid URL '%s'", $url ), [ 'post_id' => $post_id ] );
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, invalid url '%s'", $url ), [ 'post_id' => $post_id ] );
 					continue;
 				}
-				
-				// Get hostname.
-				$hostname  = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url, PHP_URL_HOST );
 
+				// Get hostname.
+				$parsed_url = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url );
+				$hostname   = $parsed_url['host'] ?? null;
+				
 				// Filter by host.
-				if ( $hostname && $only_scan_hosts && ! $this->does_uri_match_host( '//'. $hostname . '/', $only_scan_hosts ) ) {
-					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
-					continue;
+				if ( $only_scan_hosts ) {
+					
+					$allow_host = false;
+					
+					// Allow root-relative ("/something...") if '/' was set in --only-scan-hosts,
+					// and hostname is empty, and scheme is not set (http...nor any other schemes like file://, ftp://, etc)
+					// and $url starts with with "/".
+					if( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && str_starts_with( $url, '/' ) ) {
+						$allow_host = true;
+					}
+					// Hostname matching.
+					else if( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
+						$allow_host = true;
+					}
+
+					if( ! $allow_host ) {
+						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
+						continue;	
+					}
+
 				}				
 
 				// Get extension.
@@ -1622,7 +1640,7 @@ class Downloader {
 	}
 
 	/**
-	 * Gets all the unique <img> `src` and `srcset` URLs from HTML.
+	 * Gets all the unique <img> `src`, `srcset`, and `data-srcset` URLs from HTML.
 	 *
 	 * @param string $html HTML.
 	 *
