@@ -102,7 +102,10 @@ class Downloader {
 					[
 						'type'        => 'assoc',
 						'name'        => 'only-scan-hosts',
-						'description' => 'CSV, list of specific hosts to scan. Can use a wildcard, e.g. to cover a host and all its subdomains, use these two values `somehost.com,*.somehost.com`, or for multiple domain extensions use `www.somehost.*`, or can even use `*.somehost.*` for all subdomains and all domain extensions.
+						'description' => 'CSV, list of specific hosts to scan.
+							- Use a wildcard to cover a host and all its subdomains (e.g.: `somehost.com,*.somehost.com`, or for multiple domain extensions use `www.somehost.*`, or use `*.somehost.*` for all subdomains and all domain extensions.)
+							- Use "/" to include root-relative urls (i.e. starting with `/`, e.g. `/path/to/image.jpg`).
+							- Combine wildcard with root-relative: "somehost.com,*.somehost.com,/"
 						',
 						'optional'    => true,
 						'repeating'   => false,
