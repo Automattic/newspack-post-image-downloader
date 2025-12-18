@@ -436,15 +436,15 @@ class Downloader {
 					if ( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && str_starts_with( $url, '/' ) ) {
 						$allow_host = true;
 					}
-					// Hostname matching.
 					elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
+						// Hostname match.
 						$allow_host = true;
 					}
 
 					if ( ! $allow_host ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
 						continue;   
-					}               
+					}
 				}               
 
 				// Get extension.
