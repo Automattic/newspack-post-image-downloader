@@ -433,20 +433,19 @@ class Downloader {
 					// Allow root-relative ("/something...") if '/' was set in --only-scan-hosts,
 					// and hostname is empty, and scheme is not set (http...nor any other schemes like file://, ftp://, etc)
 					// and $url starts with with "/".
-					if( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && str_starts_with( $url, '/' ) ) {
+					if ( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && str_starts_with( $url, '/' ) ) {
 						$allow_host = true;
 					}
 					// Hostname matching.
-					else if( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
+					elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
 						$allow_host = true;
 					}
 
-					if( ! $allow_host ) {
+					if ( ! $allow_host ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
-						continue;	
-					}
-
-				}				
+						continue;   
+					}               
+				}               
 
 				// Get extension.
 				$extension = $this->get_url_extension( $url );
