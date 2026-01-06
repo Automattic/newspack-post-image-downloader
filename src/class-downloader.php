@@ -443,9 +443,9 @@ class Downloader {
 
 					if ( ! $allow_host ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
-						continue;   
+						continue;
 					}
-				}               
+				}
 
 				// Get extension.
 				$extension = $this->get_url_extension( $url );
