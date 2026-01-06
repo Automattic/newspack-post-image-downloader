@@ -1496,6 +1496,9 @@ class Downloader {
 			return in_array( '/', $hosts, true );
 		}
 		
+		// Remove '/' just incase when doing the hostname matching.
+		$hosts = array_filter( $hosts, fn ( $v ) => trim( $v ) !== '/' );
+
 		// Just do the normal hostname check.
 		return $this->does_uri_match_host( $uri, $hosts );
 	}
@@ -1522,11 +1525,8 @@ class Downloader {
 	 * @return bool True if the URL is relative, false otherwise.
 	 */
 	public function is_url_root_relative( string $url ): bool {
-		$url                    = trim( $url );
-		$ends_with_single_slash = 0 === strpos( $url, '/' );
-		$is_protocol_relative   = $this->is_url_protocol_relative( $url );
-		
-		return $ends_with_single_slash && ! $is_protocol_relative;
+		$url = trim( $url );		
+		return ( 0 === strpos( $url, '/' ) ) && ( 0 !== strpos( $url, '//' ) );
 	}
 
 	/**
