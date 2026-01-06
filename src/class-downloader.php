@@ -421,24 +421,10 @@ class Downloader {
 					continue;
 				}
 
-				// Filter by host.
-				if ( $only_scan_hosts ) {
-
-					$allow_host = false;
-					
-					// Allow root-relative ("/something...") if '/' was set in --only-scan-hosts.
-					if ( in_array( '/', $only_scan_hosts, true ) && $this->is_url_root_relative( $url ) ) {
-						$allow_host = true;
-					}
-					elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
-						// Hostname match.
-						$allow_host = true;
-					}
-
-					if ( ! $allow_host ) {
-						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
-						continue;
-					}
+				// Filter by host.  Check for allowed hosts and maybe '/' root relative too.
+				if ( $only_scan_hosts && ! $this->does_uri_match_host_maybe_root_relative( $url, $only_scan_hosts ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
+					continue;
 				}
 
 				// Get hostname.
@@ -1492,6 +1478,27 @@ class Downloader {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Checks whether URI's host matches an array element of the given hosts array (the hosts array supports wildcard),
+	 * maybe also allow '/' root relative if allowed in hosts list.
+	 *
+	 * @param string $uri   URI which host is checked.
+	 * @param array  $hosts Hostnames to check against.
+	 *
+	 * @return false
+	 */
+	public function does_uri_match_host_maybe_root_relative( string $uri, array $hosts ) {
+
+		// If the uri is root relative, then check if '/' is in the allowed $hosts set.
+		if ( $this->is_url_root_relative( $uri ) ) {
+			return in_array( '/', $hosts, true );
+		}
+		
+		// Just do the normal hostname check.
+		return $this->does_uri_match_host( $uri, $hosts );
+
 	}
 
 	/**
