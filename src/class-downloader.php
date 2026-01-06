@@ -435,8 +435,7 @@ class Downloader {
 					// and $url starts with "/".
 					if ( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && str_starts_with( $url, '/' ) ) {
 						$allow_host = true;
-					}
-					elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
+					} elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
 						// Hostname match.
 						$allow_host = true;
 					}
