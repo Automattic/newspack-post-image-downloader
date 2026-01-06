@@ -179,6 +179,22 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests the `does_uri_match_host_maybe_root_relative` function.
+	 *
+	 * @dataProvider providerUriHostMatchingMaybeRootRelative
+	 *
+	 * @param string[] $srcs            URIs whose host we're testing.
+	 * @param array    $hosts           Array of hosts to check for.
+	 * @param bool     $result_expected Expected result.
+	 */
+	public function test_uri_host_matching_maybe_root_relative( $srcs, $hosts, $result_expected ) {
+		foreach( $srcs as $src ) {
+			$result_actual = $this->downloader->does_uri_match_host_maybe_root_relative( $src, $hosts );
+			$this->assertSame( $result_expected, $result_actual );
+		}
+	}
+
+	/**
 	 * Tests the `get_non_intermediate_img_url` function.
 	 *
 	 * @dataProvider providerGetNonIntermediateImgUrl
@@ -447,6 +463,26 @@ class Test_Downloader extends WP_UnitTestCase {
 			[
 				'https://www.host1.com/path/img.jpg',
 				[ 'www.host2.*' ],
+				false,
+			],
+		];
+	}
+
+	/**
+	 * DataProvider for test_uri_host_matching_maybe_root_relative.
+	 *
+	 * @return array[]
+	 */
+	public function providerUriHostMatchingMaybeRootRelative() {
+		return [
+			[
+				[ 'https://host1.com/path/img.jpg', '//youtube.com/video/watch?id=123', '/relative/image.jpg' ],
+				[ 'host1.com', 'youtube.com', '/' ],
+				true,
+			],
+			[
+				[ 'https://www.host1.com/path/img.jpg', '//youtube.com/video/watch?id=123', '///triple-slash/file.txt', '../relative/image.jpg' ],
+				[ '/' ],
 				false,
 			],
 		];
@@ -1083,6 +1119,10 @@ class Test_Downloader extends WP_UnitTestCase {
 			[
 				'   /path/to/page   ',
 				true,
+			],
+			[
+				'///three-slashes/path', // this should fail since it's not a valid url (ie: `wp_parse_url` returns  false)
+				false,
 			],
 		];
 	}
