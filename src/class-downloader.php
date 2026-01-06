@@ -421,26 +421,12 @@ class Downloader {
 					continue;
 				}
 
-				// Get hostname.
-				$parsed_url = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url );
-				$hostname   = $parsed_url['host'] ?? null;
-				
-				// Filter by host.
+				// Filter by host - skip if URL doesn't match allowed hosts.
 				if ( $only_scan_hosts ) {
+					$is_allowed_root_relative = in_array( '/', $only_scan_hosts, true ) && $this->is_url_root_relative( $url );
+					$is_matching_host = $this->does_uri_match_host( $url, $only_scan_hosts );
 					
-					$allow_host = false;
-					
-					// Allow root-relative ("/something...") if '/' was set in --only-scan-hosts,
-					// and hostname is empty, and scheme is not set (http...nor any other schemes like file://, ftp://, etc)
-					// and $url starts with "/".
-					if ( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && str_starts_with( $url, '/' ) ) {
-						$allow_host = true;
-					} elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
-						// Hostname match.
-						$allow_host = true;
-					}
-
-					if ( ! $allow_host ) {
+					if ( ! $is_allowed_root_relative && ! $is_matching_host ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
 						continue;
 					}
@@ -448,6 +434,9 @@ class Downloader {
 
 				// Get extension.
 				$extension = $this->get_url_extension( $url );
+
+				// Get hostname.
+				$hostname = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url, PHP_URL_HOST );
 
 				// Add to CSV.
 				fputcsv( $csv_file_handle, [ $post_id, $hostname, $extension, $url, ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
