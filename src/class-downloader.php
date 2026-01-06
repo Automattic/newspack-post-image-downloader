@@ -421,10 +421,6 @@ class Downloader {
 					continue;
 				}
 
-				// Get hostname.
-				$parsed_url = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url );
-				$hostname   = $parsed_url['host'] ?? null;
-				
 				// Filter by host.
 				if ( $only_scan_hosts ) {
 					
@@ -446,6 +442,9 @@ class Downloader {
 
 				// Get extension.
 				$extension = $this->get_url_extension( $url );
+
+				// Get hostname.
+				$hostname = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url, PHP_URL_HOST );
 
 				// Add to CSV.
 				fputcsv( $csv_file_handle, [ $post_id, $hostname, $extension, $url, ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
