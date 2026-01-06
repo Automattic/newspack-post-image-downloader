@@ -430,10 +430,8 @@ class Downloader {
 					
 					$allow_host = false;
 					
-					// Allow root-relative ("/something...") if '/' was set in --only-scan-hosts,
-					// and hostname is empty, and scheme is not set (http...nor any other schemes like file://, ftp://, etc)
-					// and $url starts with "/".
-					if ( in_array( '/', $only_scan_hosts, true ) && empty( $hostname ) && ! isset( $parsed_url['scheme'] ) && 0 === strpos( $url, '/' ) ) {
+					// Allow root-relative ("/something...") if '/' was set in --only-scan-hosts.
+					if ( in_array( '/', $only_scan_hosts, true ) && $this->is_url_root_relative( $url ) ) {
 						$allow_host = true;
 					} elseif ( $this->does_uri_match_host( $url, $only_scan_hosts ) ) {
 						// Hostname match.
