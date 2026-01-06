@@ -421,12 +421,17 @@ class Downloader {
 					continue;
 				}
 
-				// Filter by host - skip if URL doesn't match allowed hosts.
+				// Filter by host.
 				if ( $only_scan_hosts ) {
+
+					// If '/' urls are allowed and it's actually a root relative url.
 					$is_allowed_root_relative = in_array( '/', $only_scan_hosts, true ) && $this->is_url_root_relative( $url );
-					$is_matching_host         = $this->does_uri_match_host( $url, $only_scan_hosts );
+
+					// If url matches an allowed host.
+					$is_allowed_host = $this->does_uri_match_host( $url, $only_scan_hosts );
 					
-					if ( ! $is_allowed_root_relative && ! $is_matching_host ) {
+					// Skip the url if both checks are false.
+					if ( ! $is_allowed_root_relative && ! $is_allowed_host ) {
 						$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
 						continue;
 					}
