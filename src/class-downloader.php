@@ -90,12 +90,12 @@ class Downloader {
 			'newspack-post-image-downloader scan-existing-urls',
 			[ $this, 'cmd_scan_existing_urls' ],
 			[
-				'shortdesc' => 'Searches all existing image URLs in <img> attributes in posts and pages, and lists hostnames and extensions. Useful to ascertain existing hostnames to include/exclude from downloading.',
+				'shortdesc' => 'Searches all existing image URLs in <img src> attributes in posts and pages, and lists hostnames and extensions. Useful to ascertain existing hostnames to include/exclude from downloading.',
 				[
 					[
 						'type'        => 'flag',
 						'name'        => 'include-non-image-urls',
-						'description' => 'By default, only scans <img> elements, but if this flag is set, it will also scan non-image URLs.',
+						'description' => 'By default, only scans image URLs, but if this flag is set, it will also scan non-image URLs.',
 						'optional'    => true,
 						'repeating'   => false,
 					],
@@ -432,11 +432,11 @@ class Downloader {
 					}
 				}
 
-				// Get extension.
-				$extension = $this->get_url_extension( $url );
-
 				// Get hostname.
 				$hostname = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url, PHP_URL_HOST );
+
+				// Get extension.
+				$extension = $this->get_url_extension( $url );
 
 				// Add to CSV.
 				fputcsv( $csv_file_handle, [ $post_id, $hostname, $extension, $url, ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
@@ -1630,7 +1630,7 @@ class Downloader {
 	}
 
 	/**
-	 * Gets all the unique <img> `src`, `srcset`, and `data-srcset` URLs from HTML.
+	 * Gets all the unique <img> `src` and `srcset` URLs from HTML.
 	 *
 	 * @param string $html HTML.
 	 *
