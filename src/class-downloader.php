@@ -1498,7 +1498,6 @@ class Downloader {
 		
 		// Just do the normal hostname check.
 		return $this->does_uri_match_host( $uri, $hosts );
-
 	}
 
 	/**
