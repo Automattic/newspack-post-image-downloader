@@ -1085,7 +1085,7 @@ class Test_Downloader extends WP_UnitTestCase {
 				true,
 			],
 			[
-				// this should fail since it's not a valid url (ie: `wp_parse_url` returns  false).
+				// this should fail since it's not a valid url (ie: `wp_parse_url` returns false).
 				'///three-slashes/path',
 				false,
 			],
