@@ -101,6 +101,17 @@ class Downloader {
 					],
 					[
 						'type'        => 'assoc',
+						'name'        => 'only-scan-hosts',
+						'description' => 'CSV, list of specific hosts to scan.
+							- Use a wildcard to cover a host and all its subdomains (e.g.: `somehost.com,*.somehost.com`, or for multiple domain extensions use `www.somehost.*`, or use `*.somehost.*` for all subdomains and all domain extensions.)
+							- Use "/" to include root-relative urls (i.e. starting with `/`, e.g. `/path/to/image.jpg`).
+							- Combine wildcard with root-relative: "somehost.com,*.somehost.com,/"
+						',
+						'optional'    => true,
+						'repeating'   => false,
+					],
+					[
+						'type'        => 'assoc',
 						'name'        => 'post-types',
 						'description' => 'Optional CSV Post types to scan. Defaults are `post,page`',
 						'optional'    => true,
@@ -346,6 +357,7 @@ class Downloader {
 	 */
 	public function cmd_scan_existing_urls( $pos_args, $assoc_args ) {
 		$include_non_image_urls = isset( $assoc_args['include-non-image-urls'] ) ? true : false;
+		$only_scan_hosts        = isset( $assoc_args['only-scan-hosts'] ) ? explode( ',', $assoc_args['only-scan-hosts'] ) : null;
 		$post_types             = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : [ 'post', 'page' ];
 		$post_statuses          = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : [ 'publish' ];
 		$post_ids_specific      = isset( $assoc_args['post-ids-csv'] ) ? explode( ',', $assoc_args['post-ids-csv'] ) : null;
@@ -404,31 +416,22 @@ class Downloader {
 				$url = trim( $url );
 
 				// Validate URL.
-				$is_absolute          = $this->is_url_absolute( $url );
-				$is_root_relative     = $this->is_url_root_relative( $url );
-				$is_protocol_relative = $this->is_url_protocol_relative( $url );
 				if ( ! $this->is_url_valid( $url ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, invalid url '%s'", $url ), [ 'post_id' => $post_id ] );
 					continue;
 				}
 
-				// Get hostname and extension.
-				$url_check = null;
-				if ( $is_absolute || $is_root_relative ) {
-					$url_check = $url;
-				} elseif ( $is_protocol_relative ) {
-					$url_check = 'https:' . $url;
-				} else {
-					// Unsupported URL, like `src="data:image/svg+xml;base64"` or invalid URLs.
-					fputcsv( $csv_file_handle, [ $post_id, '', '', $url ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
+				// Filter by host.  Check for allowed hosts and maybe '/' root relative too.
+				if ( $only_scan_hosts && ! $this->does_uri_match_host_maybe_root_relative( $url, $only_scan_hosts ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, off target host '%s'", $url ), [ 'post_id' => $post_id ] );
 					continue;
 				}
 
 				// Get hostname.
-				$parsed   = wp_parse_url( $url_check );
-				$hostname = $parsed['host'] ?? null;
+				$hostname = wp_parse_url( $this->is_url_protocol_relative( $url ) ? 'https:' . $url : $url, PHP_URL_HOST );
 
 				// Get extension.
-				$extension = $this->get_url_extension( $url_check );
+				$extension = $this->get_url_extension( $url );
 
 				// Add to CSV.
 				fputcsv( $csv_file_handle, [ $post_id, $hostname, $extension, $url, ], ',', '"', '' ); // phpcs:ignore -- WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_fputcsv.
@@ -448,11 +451,11 @@ class Downloader {
 		// Tada!
 		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total URL hosts', count( $cli_quick_output['hostnames'] ) ) );
 		if ( count( $cli_quick_output['hostnames'] ) > 0 ) {
-			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '- %s', implode( "\n- ", $cli_quick_output['hostnames'] ) ) );
+			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( "\n- %s", implode( "\n- ", $cli_quick_output['hostnames'] ) ) );
 		}
 		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 Found %d total URL extensions -- note that technically extension is everything after the last dot, so use the following list to determine which ones are valid ', count( $cli_quick_output['extensions'] ) ) );
 		if ( count( $cli_quick_output['extensions'] ) > 0 ) {
-			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '- %s', implode( ', ', $cli_quick_output['extensions'] ) ) );
+			$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( "\n- %s", implode( "\n- ", $cli_quick_output['extensions'] ) ) );
 		}
 		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( 'Done in %d mins! 🙌 ', floor( ( microtime( true ) - $time_start ) / 60 ) ) );
 		$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::INFO, sprintf( '👉 See CSV file for full list of post IDs, URLs, hostnames and extensions: %s ', $csv_file ) );
@@ -1478,6 +1481,29 @@ class Downloader {
 	}
 
 	/**
+	 * Checks whether URI's host matches an array element of the given hosts array (the hosts array supports wildcard),
+	 * maybe also allow '/' root relative if allowed in hosts list.
+	 *
+	 * @param string $uri   URI which host is checked.
+	 * @param array  $hosts Hostnames to check against.
+	 *
+	 * @return false
+	 */
+	public function does_uri_match_host_maybe_root_relative( string $uri, array $hosts ) {
+
+		// If the uri is root relative, then check if '/' is in the allowed $hosts set.
+		if ( $this->is_url_root_relative( $uri ) ) {
+			return in_array( '/', $hosts, true );
+		}
+		
+		// Remove '/' just incase when doing the hostname matching.
+		$hosts = array_filter( $hosts, fn ( $v ) => trim( $v ) !== '/' );
+
+		// Just do the normal hostname check.
+		return $this->does_uri_match_host( $uri, $hosts );
+	}
+
+	/**
 	 * Checks if a URL is absolute, i.e. starting with `http` or `https`, e.g. `https://example.com/path`.
 	 * Note: this method will trim the input URL before checking if it's absolute.
 	 * 
@@ -1669,14 +1695,14 @@ class Downloader {
 	}
 
 	/**
-	 * Gets unique URLs from HTML.
-	 * Supported URL types are absolute, root-relative (e.g. `/path/to/image.jpg`) and protocol-relative (e.g. `//example.com/path/to/image.jpg`), but not `data` B64 or page-relative URLs (e.g. `../page/image.jpg`).
+	 * Gets all URLs from HTML.
+	 * 
 	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
 	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
 	 *
 	 * @param string $html HTML.
 	 *
-	 * @return array An array of unique and valid/supported URLs.
+	 * @return array An array of unique URLs.
 	 */
 	public function get_all_urls_from_html( string $html ): array {
 		$urls    = [];
@@ -1731,15 +1757,7 @@ class Downloader {
 			}
 		);
 		$urls = array_map( 'trim', $urls );
-		
-		// Validate URLs.
-		$urls = array_filter(
-			$urls,
-			function ( $url ) {
-				return $this->is_url_valid( $url );
-			}
-		);
-		
+
 		// Update keys.
 		$urls = array_values( $urls );
 
