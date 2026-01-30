@@ -395,7 +395,7 @@ class Downloader {
 
 			// Get all URLs, or just image `src`s.
 			$urls = $include_non_image_urls
-				? $this->get_all_urls_from_html( $post_content )
+				? $this->get_all_urls_from_html( $post_content, false )
 				: $this->get_all_img_srcs_from_html( $post_content );
 			if ( empty( $urls ) ) {
 				continue;
@@ -960,7 +960,7 @@ class Downloader {
 			MemoryCleanupHook::cleanup();
 
 			// Get all URLs with extensions from HTML.
-			$urls_all        = $this->get_all_urls_from_html( $post_content );
+			$urls_all        = $this->get_all_urls_from_html( $post_content, false );
 			$urls_extensions = [];
 			foreach ( $urls_all as $url ) {
 				// Validate URL.
@@ -1675,11 +1675,12 @@ class Downloader {
 	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
 	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
 	 *
-	 * @param string $html HTML.
+	 * @param string $html     HTML.
+	 * @param bool   $validate Whether to filter out invalid URLs. Default true for backward compatibility.
 	 *
 	 * @return array An array of unique URLs.
 	 */
-	public function get_all_urls_from_html( string $html ): array {
+	public function get_all_urls_from_html( string $html, bool $validate = true ): array {
 		$urls    = [];
 		$crawler = new Crawler( $html );
 		
@@ -1732,6 +1733,16 @@ class Downloader {
 			}
 		);
 		$urls = array_map( 'trim', $urls );
+		
+		// Filter out invalid URLs if validation is enabled.
+		if ( $validate ) {
+			$urls = array_filter(
+				$urls,
+				function ( $url ) {
+					return $this->is_url_valid( $url );
+				}
+			);
+		}
 		
 		// Update keys.
 		$urls = array_values( $urls );
