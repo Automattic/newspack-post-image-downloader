@@ -1525,8 +1525,8 @@ class Downloader {
 	 * @return bool True if the URL is relative, false otherwise.
 	 */
 	public function is_url_root_relative( string $url ): bool {
-		$url = trim( $url );		
-		return ( 0 === strpos( $url, '/' ) ) && ( 0 !== strpos( $url, '//' ) );
+		$url = trim( $url );
+		return ( 0 === strpos( $url, '/' ) ) && ! ( 0 === strpos( $url, '//' ) );
 	}
 
 	/**
