@@ -408,7 +408,7 @@ class Downloader {
 				$is_root_relative     = $this->is_url_root_relative( $url );
 				$is_protocol_relative = $this->is_url_protocol_relative( $url );
 				if ( ! $this->is_url_valid( $url ) ) {
-					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, invalid url '%s'", $url ), [ 'post_id' => $post_id ] );
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Invalid URL type '%s'", $url ), [ 'post_id' => $post_id ] );
 					continue;
 				}
 
