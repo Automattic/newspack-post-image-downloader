@@ -408,6 +408,7 @@ class Downloader {
 				$is_root_relative     = $this->is_url_root_relative( $url );
 				$is_protocol_relative = $this->is_url_protocol_relative( $url );
 				if ( ! $this->is_url_valid( $url ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::DEBUG, sprintf( "✖ skipping, invalid url '%s'", $url ), [ 'post_id' => $post_id ] );
 					continue;
 				}
 
@@ -1669,14 +1670,14 @@ class Downloader {
 	}
 
 	/**
-	 * Gets unique URLs from HTML.
-	 * Supported URL types are absolute, root-relative (e.g. `/path/to/image.jpg`) and protocol-relative (e.g. `//example.com/path/to/image.jpg`), but not `data` B64 or page-relative URLs (e.g. `../page/image.jpg`).
+	 * Gets all URLs from HTML.
+	 * 
 	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
 	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
 	 *
 	 * @param string $html HTML.
 	 *
-	 * @return array An array of unique and valid/supported URLs.
+	 * @return array An array of unique URLs.
 	 */
 	public function get_all_urls_from_html( string $html ): array {
 		$urls    = [];
@@ -1731,14 +1732,6 @@ class Downloader {
 			}
 		);
 		$urls = array_map( 'trim', $urls );
-		
-		// Validate URLs.
-		$urls = array_filter(
-			$urls,
-			function ( $url ) {
-				return $this->is_url_valid( $url );
-			}
-		);
 		
 		// Update keys.
 		$urls = array_values( $urls );
