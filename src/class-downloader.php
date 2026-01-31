@@ -960,7 +960,7 @@ class Downloader {
 			MemoryCleanupHook::cleanup();
 
 			// Get all URLs with extensions from HTML.
-			$urls_all        = $this->get_all_urls_from_html( $post_content, false );
+			$urls_all        = $this->get_all_urls_from_html( $post_content );
 			$urls_extensions = [];
 			foreach ( $urls_all as $url ) {
 				// Validate URL.
@@ -1670,7 +1670,7 @@ class Downloader {
 	}
 
 	/**
-	 * Gets all URLs from HTML.
+	 * Gets all unique URLs from HTML.
 	 * 
 	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
 	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
@@ -1734,7 +1734,7 @@ class Downloader {
 		);
 		$urls = array_map( 'trim', $urls );
 		
-		// Filter out invalid URLs if validation is enabled.
+		// Filter out invalid URLs if $validation argument is true.
 		if ( $validate ) {
 			$urls = array_filter(
 				$urls,
