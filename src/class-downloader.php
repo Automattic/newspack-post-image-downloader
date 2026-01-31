@@ -1734,7 +1734,7 @@ class Downloader {
 		);
 		$urls = array_map( 'trim', $urls );
 		
-		// Filter out invalid URLs if $validation argument is true.
+		// Filter out invalid URLs if validate argument is true.
 		if ( $validate ) {
 			$urls = array_filter(
 				$urls,
