@@ -749,7 +749,7 @@ class Test_Downloader extends WP_UnitTestCase {
 					<a href="/absolute/audio.mp3">absolute</a>
 				',
 				[
-					// href attribute is crawled first, but relative urls are filtered out by default: 'relative/audio.mp3' .
+					// href attribute is crawled first, but relative urls are filtered out: 'relative/audio.mp3' .
 					'/absolute/audio.mp3', // href attribute is crawled first. Root-relative URLs are valid.
 					'https://example.com/app.js', // src attribute is crawled after href.
 					'/image.jpg', // src attribute is crawled after href.
