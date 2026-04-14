@@ -1670,13 +1670,18 @@ class Downloader {
 	}
 
 	/**
-	 * Gets all unique URLs from HTML.
+	 * Gets unique URLs from HTML.
+	 * 
+	 * Supported URL types are absolute, root-relative (e.g. `/path/to/image.jpg`) and protocol-relative (e.g. `//example.com/path/to/image.jpg`).
+	 * 
+	 * By default, invalid urls like `data` B64 or page-relative URLs (e.g. `../page/image.jpg`) are not returned. Set the $validate arg to false
+	 * to turn off validation if you'd like invalid urls to also be returned.
 	 * 
 	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
 	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
 	 *
 	 * @param string $html     HTML.
-	 * @param bool   $validate Whether to filter out invalid URLs. Default true for backward compatibility.
+	 * @param bool   $validate Whether to validate URLs. Default `true` will remove in-invalid urls (this is backward compatible).
 	 *
 	 * @return array An array of unique URLs.
 	 */
