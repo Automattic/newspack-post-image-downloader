@@ -395,7 +395,7 @@ class Downloader {
 
 			// Get all URLs, or just image `src`s.
 			$urls = $include_non_image_urls
-				? $this->get_all_urls_from_html( $post_content )
+				? $this->get_all_urls_from_html( $post_content, false )
 				: $this->get_all_img_srcs_from_html( $post_content );
 			if ( empty( $urls ) ) {
 				continue;
@@ -408,6 +408,7 @@ class Downloader {
 				$is_root_relative     = $this->is_url_root_relative( $url );
 				$is_protocol_relative = $this->is_url_protocol_relative( $url );
 				if ( ! $this->is_url_valid( $url ) ) {
+					$this->log( self::LOG_OUTPUTS['CLI_AND_FILE'], LogLevel::ERROR, sprintf( "❗ Invalid URL '%s'", $url ), [ 'post_id' => $post_id ] );
 					continue;
 				}
 
@@ -1670,15 +1671,21 @@ class Downloader {
 
 	/**
 	 * Gets unique URLs from HTML.
-	 * Supported URL types are absolute, root-relative (e.g. `/path/to/image.jpg`) and protocol-relative (e.g. `//example.com/path/to/image.jpg`), but not `data` B64 or page-relative URLs (e.g. `../page/image.jpg`).
+	 * 
+	 * Supported URL types are absolute, root-relative (e.g. `/path/to/image.jpg`) and protocol-relative (e.g. `//example.com/path/to/image.jpg`).
+	 * 
+	 * By default, invalid urls like `data` B64 or page-relative URLs (e.g. `../page/image.jpg`) are not returned. Set the $validate arg to false
+	 * to turn off validation if you'd like invalid urls to also be returned.
+	 * 
 	 * First fetches URLs from various DOM attributes to get the most relevant URLs, and then additionally extracts just potential remaining 
 	 * absolute URLs from text content. This hybrid approach tries to optimize relevance and accuracy.
 	 *
-	 * @param string $html HTML.
+	 * @param string $html     HTML.
+	 * @param bool   $validate Whether to validate URLs. Default `true` will remove in-invalid urls (this is backward compatible).
 	 *
-	 * @return array An array of unique and valid/supported URLs.
+	 * @return array An array of unique URLs. (By default, only valid/supported URLs are returned - control this behavior with the $validate arg.)
 	 */
-	public function get_all_urls_from_html( string $html ): array {
+	public function get_all_urls_from_html( string $html, bool $validate = true ): array {
 		$urls    = [];
 		$crawler = new Crawler( $html );
 		
@@ -1732,13 +1739,15 @@ class Downloader {
 		);
 		$urls = array_map( 'trim', $urls );
 		
-		// Validate URLs.
-		$urls = array_filter(
-			$urls,
-			function ( $url ) {
-				return $this->is_url_valid( $url );
-			}
-		);
+		// Filter out invalid URLs if validate argument is true.
+		if ( $validate ) {
+			$urls = array_filter(
+				$urls,
+				function ( $url ) {
+					return $this->is_url_valid( $url );
+				}
+			);
+		}
 		
 		// Update keys.
 		$urls = array_values( $urls );
