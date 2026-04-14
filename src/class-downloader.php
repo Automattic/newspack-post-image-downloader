@@ -1683,7 +1683,7 @@ class Downloader {
 	 * @param string $html     HTML.
 	 * @param bool   $validate Whether to validate URLs. Default `true` will remove in-invalid urls (this is backward compatible).
 	 *
-	 * @return array An array of unique URLs.
+	 * @return array An array of unique URLs. (By default, invalid urls are not returned - control this behavior with the $validate arg.)
 	 */
 	public function get_all_urls_from_html( string $html, bool $validate = true ): array {
 		$urls    = [];
