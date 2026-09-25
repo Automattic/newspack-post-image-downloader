@@ -9,6 +9,7 @@ namespace NewspackPostImageDownloader;
 
 use WP_CLI;
 use WP_Error;
+use WP_HTML_Tag_Processor;
 use Newspack\MigrationTools\Logic\Attachments;
 use Newspack\MigrationTools\Hooks\MemoryCleanupHook;
 use Symfony\Component\DomCrawler\Crawler;
@@ -1824,8 +1825,10 @@ class Downloader {
 	}
 
 	/**
-	 * Alternative version using Symfony DomCrawler for DOM manipulation instead of regex.
-	 * Removes srcset/data-srcset attributes and adds/updates wp-image-{id} class.
+	 * Updates img tags whose src matches $src_local: removes srcset/data-srcset attributes and adds/updates the wp-image-{id} class.
+	 *
+	 * Uses WP_HTML_Tag_Processor rather than a DOM round-trip, so only the edited attributes change and all other bytes
+	 * are kept as-is. A DOM parser would normalize the markup and could drop content after unbalanced closing tags.
 	 *
 	 * @param string $html          HTML content.
 	 * @param string $src_local     The new local src URL to match img tags.
@@ -1833,45 +1836,25 @@ class Downloader {
 	 * @return string Updated HTML.
 	 */
 	public function update_img_tag_for_new_attachment( string $html, string $src_local, int $attachment_id ): string {
-		// Wrap HTML to prevent DOMDocument from adding html/body structure.
-		$wrapper_id   = 'npid-tmp-' . uniqid();
-		$wrapped_html = '<div id="' . $wrapper_id . '">' . $html . '</div>';
+		$tags = new WP_HTML_Tag_Processor( $html );
+		while ( $tags->next_tag( 'img' ) ) {
+			if ( $tags->get_attribute( 'src' ) !== $src_local ) {
+				continue;
+			}
 
-		$crawler = new Crawler( $wrapped_html );
+			$tags->remove_attribute( 'srcset' );
+			$tags->remove_attribute( 'data-srcset' );
 
-		// Find img tags matching the src (using reduce() to avoid CSS selector escaping issues).
-		$img_nodes = $crawler->filter( 'img' )->reduce(
-			fn( Crawler $node ) => $node->attr( 'src' ) === $src_local
-		);
-
-		if ( 0 === $img_nodes->count() ) {
-			return $html;
+			// Copy the class list first, since classes are removed while looping.
+			foreach ( iterator_to_array( $tags->class_list(), false ) as $class_name ) {
+				if ( preg_match( '/^wp-image-\d+$/', $class_name ) ) {
+					$tags->remove_class( $class_name );
+				}
+			}
+			$tags->add_class( 'wp-image-' . $attachment_id );
 		}
 
-		// Pattern to match wp-image-{id} class.
-		$pattern_wp_image_class = '/\bwp-image-\d+\b/';
-
-		// Modify each matching img node using DOM manipulation.
-		$img_nodes->each(
-			function ( Crawler $node ) use ( $attachment_id, $pattern_wp_image_class ) {
-				// \DOMElement $element DOM element.
-				$element = $node->getNode( 0 );
-
-				// Remove srcset and data-srcset attributes.
-				$element->removeAttribute( 'srcset' );
-				$element->removeAttribute( 'data-srcset' );
-
-				// Update or add wp-image-{id} class.
-				$class = $element->getAttribute( 'class' );
-				$class = preg_replace( $pattern_wp_image_class, '', $class );
-				$class = trim( preg_replace( '/\s+/', ' ', $class ) );
-				$class = trim( $class . ' wp-image-' . $attachment_id );
-				$element->setAttribute( 'class', $class );
-			}
-		);
-
-		// Extract modified HTML from wrapper.
-		return $crawler->filter( '#' . $wrapper_id )->html();
+		return $tags->get_updated_html();
 	}
 
 	/**

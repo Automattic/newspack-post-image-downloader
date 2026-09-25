@@ -1287,12 +1287,12 @@ class Test_Downloader extends WP_UnitTestCase {
 				'',
 			],
 
-			// Basic img with no class - should add wp-image-{id} class.
+			// Basic img with no class - should add wp-image-{id} class (a new attribute is added after the tag name).
 			'add_class_to_img_without_class'       => [
 				'<img src="https://example.com/image.jpg" alt="Test">',
 				'https://example.com/image.jpg',
 				123,
-				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+				'<img class="wp-image-123" src="https://example.com/image.jpg" alt="Test">',
 			],
 
 			// Img with existing class - should append wp-image-{id}.
@@ -1327,28 +1327,44 @@ class Test_Downloader extends WP_UnitTestCase {
 				'<img src="https://example.com/image.jpg" class="wp-image-123" alt="Test">',
 			],
 
-			// Img with srcset - should remove srcset  (DOMDocument adds class at end).
+			// Img already has wp-image-{id} for the same ID - should stay unchanged.
+			'same_wp_image_class_unchanged'        => [
+				'<img src="https://example.com/image.jpg" class="wp-image-123 kg-image" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="wp-image-123 kg-image" alt="Test">',
+			],
+
+			// Classes that only contain "wp-image-{n}" as a substring - should be kept.
+			'similar_classes_kept'                 => [
+				'<img src="https://example.com/image.jpg" class="foo-wp-image-12 wp-image-12-large" alt="Test">',
+				'https://example.com/image.jpg',
+				123,
+				'<img src="https://example.com/image.jpg" class="foo-wp-image-12 wp-image-12-large wp-image-123" alt="Test">',
+			],
+
+			// Img with srcset - should remove srcset (the whitespace before a removed attribute is kept).
 			'remove_srcset'                        => [
 				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
 				'https://example.com/image.jpg',
 				123,
-				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+				'<img class="wp-image-123" src="https://example.com/image.jpg"  alt="Test">',
 			],
 
-			// Img with data-srcset - should remove data-srcset (DOMDocument adds class at end).
+			// Img with data-srcset - should remove data-srcset.
 			'remove_data_srcset'                   => [
 				'<img src="https://example.com/image.jpg" data-srcset="https://example.com/image-300w.jpg 300w, https://example.com/image-600w.jpg 600w" alt="Test">',
 				'https://example.com/image.jpg',
 				123,
-				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+				'<img class="wp-image-123" src="https://example.com/image.jpg"  alt="Test">',
 			],
 
-			// Img with both srcset and data-srcset - should remove both (DOMDocument adds class at end).
+			// Img with both srcset and data-srcset - should remove both.
 			'remove_both_srcsets'                  => [
 				'<img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" data-srcset="https://example.com/image-600w.jpg 600w" alt="Test">',
 				'https://example.com/image.jpg',
 				123,
-				'<img src="https://example.com/image.jpg" alt="Test" class="wp-image-123">',
+				'<img class="wp-image-123" src="https://example.com/image.jpg"   alt="Test">',
 			],
 
 			// Img with class, srcset, and wp-image - full replacement scenario.
@@ -1356,7 +1372,7 @@ class Test_Downloader extends WP_UnitTestCase {
 				'<img src="https://example.com/image.jpg" class="kg-image wp-image-111" srcset="https://example.com/image-300w.jpg 300w" data-srcset="https://example.com/image-600w.jpg 600w" alt="Test">',
 				'https://example.com/image.jpg',
 				123,
-				'<img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test">',
+				'<img src="https://example.com/image.jpg" class="kg-image wp-image-123"   alt="Test">',
 			],
 
 			// Multiple img tags - only matching one should be modified.
@@ -1364,15 +1380,15 @@ class Test_Downloader extends WP_UnitTestCase {
 				'<div><img src="https://example.com/other.jpg" class="other-class" alt="Other"><img src="https://example.com/image.jpg" class="kg-image" srcset="https://example.com/image-300w.jpg 300w" alt="Test"></div>',
 				'https://example.com/image.jpg',
 				123,
-				'<div><img src="https://example.com/other.jpg" class="other-class" alt="Other"><img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test"></div>',
+				'<div><img src="https://example.com/other.jpg" class="other-class" alt="Other"><img src="https://example.com/image.jpg" class="kg-image wp-image-123"  alt="Test"></div>',
 			],
 
-			// Multiple matching img tags - all should be modified (DOMDocument adds class at end for first img).
+			// Multiple matching img tags - all should be modified.
 			'multiple_matching_imgs_all_modified'  => [
 				'<div><img src="https://example.com/image.jpg" alt="First"><img src="https://example.com/image.jpg" class="second" alt="Second"></div>',
 				'https://example.com/image.jpg',
 				123,
-				'<div><img src="https://example.com/image.jpg" alt="First" class="wp-image-123"><img src="https://example.com/image.jpg" class="second wp-image-123" alt="Second"></div>',
+				'<div><img class="wp-image-123" src="https://example.com/image.jpg" alt="First"><img src="https://example.com/image.jpg" class="second wp-image-123" alt="Second"></div>',
 			],
 
 			// Img with empty class attribute - should add wp-image-{id}.
@@ -1383,12 +1399,12 @@ class Test_Downloader extends WP_UnitTestCase {
 				'<img src="https://example.com/image.jpg" class="wp-image-123" alt="Test">',
 			],
 
-			// Img with single quotes for attributes (DOMDocument converts to double quotes).
+			// Img with single quotes for attributes (only the rewritten class attribute gets double quotes).
 			'img_with_single_quotes'               => [
 				"<img src='https://example.com/image.jpg' class='kg-image' alt='Test'>",
 				'https://example.com/image.jpg',
 				123,
-				'<img src="https://example.com/image.jpg" class="kg-image wp-image-123" alt="Test">',
+				'<img src=\'https://example.com/image.jpg\' class="kg-image wp-image-123" alt=\'Test\'>',
 			],
 
 			// Complex HTML structure (real-world example).
@@ -1396,15 +1412,31 @@ class Test_Downloader extends WP_UnitTestCase {
 				'<figure class="kg-card kg-image-card kg-card-hascaption"><img src="https://example.com/image.jpg" class="kg-image" alt="" loading="lazy" width="2000" height="1033" srcset="https://example.com/image-600w.jpg 600w, https://example.com/image-1000w.jpg 1000w, https://example.com/image-1600w.jpg 1600w" sizes="(min-width: 720px) 720px"><figcaption>Caption text</figcaption></figure>',
 				'https://example.com/image.jpg',
 				789,
-				'<figure class="kg-card kg-image-card kg-card-hascaption"><img src="https://example.com/image.jpg" class="kg-image wp-image-789" alt="" loading="lazy" width="2000" height="1033" sizes="(min-width: 720px) 720px"><figcaption>Caption text</figcaption></figure>',
+				'<figure class="kg-card kg-image-card kg-card-hascaption"><img src="https://example.com/image.jpg" class="kg-image wp-image-789" alt="" loading="lazy" width="2000" height="1033"  sizes="(min-width: 720px) 720px"><figcaption>Caption text</figcaption></figure>',
 			],
 
-			// Img in nested HTML structure (DOMDocument adds class at end).
+			// Img in nested HTML structure.
 			'img_in_nested_structure'              => [
 				'<article><div class="content"><p>Some text</p><figure><img src="https://example.com/image.jpg" srcset="https://example.com/image-300w.jpg 300w" alt="Test"></figure><p>More text</p></div></article>',
 				'https://example.com/image.jpg',
 				123,
-				'<article><div class="content"><p>Some text</p><figure><img src="https://example.com/image.jpg" alt="Test" class="wp-image-123"></figure><p>More text</p></div></article>',
+				'<article><div class="content"><p>Some text</p><figure><img class="wp-image-123" src="https://example.com/image.jpg"  alt="Test"></figure><p>More text</p></div></article>',
+			],
+
+			// Stray closing tag after the img (e.g. pasted embed code) - content after it must be kept.
+			'stray_closing_tag_keeps_content'      => [
+				'<p><img src="https://example.com/image.jpg" alt=""></p><div>x</div></div><p>AFTER</p>',
+				'https://example.com/image.jpg',
+				123,
+				'<p><img class="wp-image-123" src="https://example.com/image.jpg" alt=""></p><div>x</div></div><p>AFTER</p>',
+			],
+
+			// Self-closing tags - markup outside the edited attributes is kept as-is.
+			'self_closing_tags_kept'               => [
+				'<figure><img src="https://example.com/image.jpg" alt="" class="wp-image-1"/></figure><hr class="x"/><p>AFTER</p>',
+				'https://example.com/image.jpg',
+				123,
+				'<figure><img src="https://example.com/image.jpg" alt="" class="wp-image-123"/></figure><hr class="x"/><p>AFTER</p>',
 			],
 		];
 	}

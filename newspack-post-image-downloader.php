@@ -6,6 +6,7 @@
  * Author:      Automattic
  * Author URI:  https://newspack.pub/
  * Version:     1.4.0
+ * Requires at least: 6.4
  *
  * @package  Newspack_Post_Image_Downloader
  */
