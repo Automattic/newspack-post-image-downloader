@@ -251,6 +251,19 @@ class Test_Downloader extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests the `get_all_urls_from_html` function with validation disabled.
+	 *
+	 * @dataProvider providerGetAllUrlsFromHtmlNoValidation
+	 *
+	 * @param string $html            The HTML content to parse.
+	 * @param array  $result_expected The expected array of URLs.
+	 */
+	public function test_get_all_urls_from_html_no_validation( $html, $result_expected ) {
+		$result_actual = $this->downloader->get_all_urls_from_html( $html, false );
+		$this->assertSame( $result_expected, $result_actual );
+	}
+
+	/**
 	 * Tests the `get_urls_from_srcset` function.
 	 *
 	 * @dataProvider providerGetUrlsFromSrcset
@@ -737,15 +750,52 @@ class Test_Downloader extends WP_UnitTestCase {
 				',
 				[
 					// href attribute is crawled first, but relative urls are filtered out: 'relative/audio.mp3' .
-					'/absolute/audio.mp3', // href attribute is crawled first.
+					'/absolute/audio.mp3', // href attribute is crawled first. Root-relative URLs are valid.
 					'https://example.com/app.js', // src attribute is crawled after href.
 					'/image.jpg', // src attribute is crawled after href.
 					'http://example.com/background.jpg', // data-background is crawled after src, but before poster.
-					'//example.com/poster.png', // post is crawled later.
+					'//example.com/poster.png', // poster is crawled later. Protocol-relative URLs are valid.
 				],
 			],
 		];
 	}
+
+	/**
+	 * DataProvider for test_get_all_urls_from_html_no_validation.
+	 *
+	 * @return array[]
+	 */
+	public function providerGetAllUrlsFromHtmlNoValidation() {
+		return [
+			// Complex HTML with mixed elements including invalid relative URLs.
+			[
+				'
+					<video poster="//example.com/poster.png"></video>
+					<section data-background="http://example.com/background.jpg"></section>
+					<script src="https://example.com/app.js"></script>
+					<img src="/image.jpg" />
+					<a href="relative/audio.mp3">relative</a>
+					<a href="/absolute/audio.mp3">absolute</a>
+					<div href="div-href" src="div-src" data-src="div-data-src" srcset="/image-300w.jpg 300w, image-600w.jpg 600w">http://example.com/div-text<div>
+				',
+				[
+					'relative/audio.mp3', // href attribute is crawled first. Invalid URLs are returned when validation is disabled.
+					'/absolute/audio.mp3', // href attribute is crawled first.
+					'div-href', // href attribute is crawled first.
+					'https://example.com/app.js', // src attribute is crawled after href.
+					'/image.jpg', // src attribute is crawled after href.
+					'div-src', // src attribute is crawled after href.
+					'div-data-src', // data-src attr.
+					'http://example.com/background.jpg', // data-background is crawled after src, but before poster.
+					'//example.com/poster.png', // poster is crawled later.
+					'/image-300w.jpg', // srcset after all attributes.
+					'image-600w.jpg', // srcset after all attributes.
+					'http://example.com/div-text', // full url scan.
+				],
+			],
+		];
+	}
+
 
 	/**
 	 * DataProvider for test_get_urls_from_srcset.
